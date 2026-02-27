@@ -3700,3 +3700,8 @@ app.listen(PORT, ()=>{
   loadDb();
   console.log(`Running on http://localhost:${PORT}`);
 });
+// Express error handler (keep near the bottom)
+app.use((err, req, res, next) => {
+  console.error('ERR:', err && err.stack ? err.stack : err);
+  return res.status(500).send('Server error');
+});
