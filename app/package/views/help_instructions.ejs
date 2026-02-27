@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>تعليمات النظام</title>
+  <link href="/public/vendor/bootstrap/bootstrap.rtl.min.css" rel="stylesheet">
+  <link href="/public/app.css" rel="stylesheet">
+  <style>
+    body{ background:#fff; }
+    .print-shell{ max-width: 900px; margin: 18px auto; padding: 18px; }
+    .print-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid rgba(0,0,0,.08); padding-bottom:12px; margin-bottom:14px; }
+    .print-brand{ display:flex; align-items:center; gap:12px; }
+    .print-brand img{ height:44px; }
+    .print-title{ font-weight:900; }
+    .print-sub{ color:rgba(0,0,0,.55); font-size:.9rem; }
+    .print-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+    @media print{
+      .print-actions{ display:none !important; }
+      .print-shell{ margin:0; max-width:none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-shell">
+    <div class="print-head">
+      <div class="print-brand">
+        <img alt="الشعار" src="/public/branding/logo.svg" onerror="this.onerror=null;this.src='/public/branding/logo.png';">
+        <div>
+          <div class="print-title">تعليمات سريعة — <%= roleLabel %></div>
+          <div class="print-sub">نظام خدمة المستفيدين • نسخة تعليمات للطباعة/الحفظ PDF</div>
+        </div>
+      </div>
+      <div class="print-actions">
+        <button class="btn btn-sm btn-outline-primary" onclick="window.print()">طباعة / حفظ PDF</button>
+        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="closeHelpPage()">إغلاق</button>
+      </div>
+    </div>
+
+    <div class="alert alert-info" style="border-radius:16px;">
+      <b>ملاحظة:</b> لحفظ نسخة PDF اختر من نافذة الطباعة: <span class="ui-help-kbd">Save as PDF</span>.
+    </div>
+
+    <div class="card" style="border-radius:18px;">
+      <div class="card-body">
+        <div class="fw-bold mb-2">أبرز النقاط</div>
+        <ul class="ui-help-list">
+          <% if (role === 'counter') { %>
+            <li><b>استدعاء التالي:</b> اضغط <span class="ui-help-kbd">استدعاء التالي</span> لنداء الرقم التالي.</li>
+            <li><b>بدء الخدمة:</b> بعد (منادى) اضغط <span class="ui-help-kbd">بدء الخدمة</span>.</li>
+            <li><b>اختيار التذكرة:</b> اختر رقم التذكرة من قائمة <span class="ui-help-kbd">التذكرة</span> لعرض بيانات المستفيد والمرفقات.</li>
+            <li><b>الحفظ تلقائي:</b> حقول (التصنيف/الأولوية/القناة/الملاحظات...) تُحفظ تلقائيًا أثناء الكتابة.</li>
+            <li><b>حجز لقاء مسؤول:</b> اختر <span class="ui-help-kbd">التاريخ</span> ثم <span class="ui-help-kbd">الوقت</span> من الأوقات المتاحة.</li>
+            <li><b>إغلاق التذكرة:</b> اضغط <span class="ui-help-kbd">إغلاق التذكرة</span>، وستظهر رسالة نجاح ويتم تصفير الحقول تلقائيًا.</li>
+            <li><b>التقييم:</b> بعد الإغلاق لن تُفتح شاشة التقييم تلقائيًا؛ يمكنك فتحها يدويًا من رابط (التقييم) عند الحاجة.</li>
+            <li><b>سجل المستفيد:</b> الأفضل البحث برقم الهوية لضمان تجميع جميع التذاكر تحت ملف واحد.</li>
+          <% } else { %>
+            <li><b>الإعدادات:</b> عدّل (المواعيد/الثيم/الصوت/مدة الراحة) ثم احفظ.</li>
+            <li><b>الخدمات:</b> فعّل/أخفِ الخدمات التي تظهر في الكشك وحدد نوعها (حضور/موعد).</li>
+            <li><b>الهوية:</b> ارفع شعار الجهة وتأكد من البيانات لتنعكس على الكشك والتقارير.</li>
+            <li><b>التقارير:</b> راقب عدد التذاكر، متوسط الانتظار، متوسط الخدمة، ونِسَب الإغلاق والتقييم.</li>
+            <li><b>سجل المستفيد:</b> اعتمد رقم الهوية كمفتاح أساسي للربط.</li>
+            <li><b>التحديثات:</b> احتفظ بنسخة احتياطية من قاعدة البيانات قبل أي تحديث.</li>
+          <% } %>
+        </ul>
+      </div>
+    </div>
+
+    <div class="muted small mt-3">آخر تحديث: <%= new Date().toLocaleDateString('ar-SA') %></div>
+  </div>
+
+  <script>
+    function closeHelpPage(){
+      try{
+        // window.close works only if this page was opened by script (window.open)
+        if (window.opener){ window.close(); return; }
+      }catch(e){}
+      try{ if (history.length > 1){ history.back(); return; } }catch(e){}
+      // Fallback: go to a safe home based on role
+      try{
+        const role = '<%= role %>';
+        location.href = (role==='counter') ? '/counter' : '/admin';
+      }catch(e){ location.href = '/'; }
+    }
+
+    // auto-open print when requested
+    (function(){
+      const mode = '<%= mode %>';
+      if(mode==='print' || mode==='pdf'){
+        setTimeout(()=>{ try{ window.print(); }catch(e){} }, 400);
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>التقارير</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+  <link href="/public/app.css" rel="stylesheet">
+  <link href="/public/moe-ui.css" rel="stylesheet">
+  <style>
+    .report-kpi .card{ border:0; box-shadow: 0 8px 24px rgba(0,0,0,.06); }
+    .report-kpi .kpi-num{ font-size: 28px; font-weight: 800; letter-spacing: .2px; }
+    .report-kpi .kpi-sub{ color: #6c757d; font-size: 12px; }
+    .report-links .card{ border:0; box-shadow: 0 8px 24px rgba(0,0,0,.06); }
+    .report-links .big-num{ font-size: 34px; font-weight: 900; }
+    .glass-icon{ width: 46px; height: 46px; display: grid; place-items: center; border-radius: 16px;
+      background: rgba(255,255,255,.62); border: 1px solid rgba(15,23,42,.08);
+      box-shadow: 0 10px 24px rgba(0,0,0,.10); backdrop-filter: blur(10px);
+      color: var(--moe-navy);
+    }
+  </style>
+</head>
+<body class="bg-light">
+<div class="container-fluid py-3">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <div class="h5 mb-0">التقارير</div>
+      <div class="text-muted small">الفترة: <span class="fw-semibold"><%= from %></span> إلى <span class="fw-semibold"><%= to %></span></div>
+    </div>
+    <div class="d-flex gap-2">
+      <div class="d-flex align-items-center gap-2 me-1">
+        <span id="liveDot" class="badge rounded-pill" style="background:#adb5bd">●</span>
+        <span class="small text-muted">تحديث تلقائي</span>
+        <span id="liveAt" class="small text-muted">—</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="manualRefresh()">تحديث الآن</button>
+      </div>
+      <% if (user && user.role === 'admin') { %>
+        <a class="btn btn-outline-secondary" href="/admin">رجوع</a>
+      <% } else { %>
+        <a class="btn btn-outline-secondary" href="/admin/logout">تسجيل خروج</a>
+      <% } %>
+    </div>
+  </div>
+
+  <form class="card card-body mb-3" method="get" action="/admin/reports">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-lg-6">
+        <label class="form-label">فلترة سريعة</label>
+        <div class="btn-group w-100" role="group">
+          <button name="range" value="today" class="btn <%= (range==='today')?'btn-primary':'btn-outline-primary' %>">اليوم</button>
+          <button name="range" value="week" class="btn <%= (range==='week')?'btn-primary':'btn-outline-primary' %>">آخر أسبوع</button>
+          <button name="range" value="month" class="btn <%= (range==='month')?'btn-primary':'btn-outline-primary' %>">آخر شهر</button>
+          <button name="range" value="custom" class="btn <%= (!['today','week','month'].includes(range))?'btn-primary':'btn-outline-primary' %>">مخصص</button>
+        </div>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label">من</label>
+        <input type="date" class="form-control" name="from" value="<%= from %>">
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label">إلى</label>
+        <input type="date" class="form-control" name="to" value="<%= to %>">
+      </div>
+      <div class="col-12 col-lg-2 d-grid">
+        <button class="btn btn-success">تطبيق</button>
+      </div>
+    </div>
+  </form>
+
+  <% const pending = Math.max(0, (stats.tickets_total||0) - (stats.tickets_closed||0)); %>
+  <% const solvedTotal = (stats.q1_yes||0) + (stats.q1_no||0); %>
+  <% const solvedYesPct = solvedTotal ? Math.round(((stats.q1_yes||0) / solvedTotal) * 100) : null; %>
+  <% const statusLabelAr = (s)=>({
+    'NEW':'جديدة',
+    'ASSIGNED':'مُسندة',
+    'CALLED':'تم النداء',
+    'IN_SERVICE':'قيد الخدمة',
+    'CLOSED':'مغلقة',
+    'NO_SHOW':'لم يحضر',
+    'SKIPPED':'متجاوزة/مؤجلة'
+  }[s]||s); %>
+
+  <!-- KPI summary -->
+  <div class="report-kpi row g-3 mb-3">
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card card-body">
+        <div class="kpi-sub">إجمالي التذاكر</div>
+        <div class="kpi-num" id="kpi_total"><%= stats.tickets_total %></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card card-body">
+        <div class="kpi-sub">تذاكر مفتوحة</div>
+        <div class="kpi-num" id="kpi_pending"><%= pending %></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card card-body">
+        <div class="kpi-sub">تذاكر مغلقة</div>
+        <div class="kpi-num" id="kpi_closed"><%= stats.tickets_closed %></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card card-body">
+        <div class="kpi-sub">متوسط الانتظار</div>
+        <div class="kpi-num" id="kpi_avg_wait"><%= stats.avg_wait_sec ? (Math.round(stats.avg_wait_sec/60) + ' د') : '—' %></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card card-body">
+        <div class="kpi-sub">متوسط الخدمة</div>
+        <div class="kpi-num" id="kpi_avg_service"><%= stats.avg_service_sec ? (Math.round(stats.avg_service_sec/60) + ' د') : '—' %></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card card-body">
+        <div class="kpi-sub">التقييمات / متوسط التقييم</div>
+        <div class="kpi-num" id="kpi_feedback"><%= stats.feedback_total %> <span class="fs-6 fw-semibold text-muted" id="kpi_rating">/ <%= stats.q2_avg ? stats.q2_avg.toFixed(2) : '—' %></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-xl-4">
+      <div class="card card-body">
+        <div class="fw-bold mb-2">توزيع حالات التذاكر</div>
+        <canvas id="chStatus" height="220"></canvas>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="card card-body">
+        <div class="fw-bold mb-2">أعلى الخدمات طلبًا</div>
+        <canvas id="chServices" height="220"></canvas>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="card card-body">
+        <div class="fw-bold mb-2">أداء الكونترات</div>
+        <canvas id="chCounters" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Report tiles -->
+  <div class="report-links row g-3 mb-4">
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card card-body">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="text-muted small">تقرير الحالات</div>
+            <div class="big-num" id="tile_status_count"><%= statusRows.length %></div>
+          </div>
+          <div class="d-flex flex-column align-items-end gap-2">
+            <div class="glass-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19V5"/>
+                <path d="M4 19h16"/>
+                <path d="M7 15l3-3 3 2 5-6"/>
+              </svg>
+            </div>
+            <div class="text-muted small">أنواع حالات</div>
+          </div>
+        </div>
+        <div class="d-flex gap-2 mt-3">
+          <button type="button" class="btn btn-primary w-100" onclick="showTab('tab-status')">التفاصيل</button>
+          <a class="btn btn-outline-danger w-100" href="/admin/reports/export.pdf?type=status&range=<%= range %>&from=<%= from %>&to=<%= to %>">طباعة</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card card-body">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="text-muted small">تقرير الخدمات</div>
+            <div class="big-num" id="tile_services_count"><%= serviceRows.length %></div>
+          </div>
+          <div class="d-flex flex-column align-items-end gap-2">
+            <div class="glass-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 6h16"/>
+                <path d="M4 12h16"/>
+                <path d="M4 18h16"/>
+                <path d="M7 6v12"/>
+              </svg>
+            </div>
+            <div class="text-muted small">خدمات</div>
+          </div>
+        </div>
+        <div class="d-flex gap-2 mt-3">
+          <button type="button" class="btn btn-primary w-100" onclick="showTab('tab-services')">التفاصيل</button>
+          <a class="btn btn-outline-danger w-100" href="/admin/reports/export.pdf?type=services&range=<%= range %>&from=<%= from %>&to=<%= to %>">طباعة</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card card-body">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="text-muted small">تقرير الكونترات</div>
+            <div class="big-num" id="tile_counters_count"><%= counterRows.length %></div>
+          </div>
+          <div class="d-flex flex-column align-items-end gap-2">
+            <div class="glass-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="14" rx="2"/>
+                <path d="M7 20h10"/>
+                <path d="M12 18v2"/>
+              </svg>
+            </div>
+            <div class="text-muted small">كونتر</div>
+          </div>
+        </div>
+        <div class="d-flex gap-2 mt-3">
+          <button type="button" class="btn btn-primary w-100" onclick="showTab('tab-counters')">التفاصيل</button>
+          <a class="btn btn-outline-danger w-100" href="/admin/reports/export.pdf?type=counters&range=<%= range %>&from=<%= from %>&to=<%= to %>">طباعة</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card card-body">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="text-muted small">تقرير الموظفين</div>
+            <div class="big-num" id="tile_employees_count"><%= employeeRows.length %></div>
+          </div>
+          <div class="d-flex flex-column align-items-end gap-2">
+            <div class="glass-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21a8 8 0 0 0-16 0"/>
+                <circle cx="12" cy="8" r="4"/>
+              </svg>
+            </div>
+            <div class="text-muted small">موظف</div>
+          </div>
+        </div>
+        <div class="d-flex gap-2 mt-3">
+          <button type="button" class="btn btn-primary w-100" onclick="showTab('tab-employees')">التفاصيل</button>
+          <a class="btn btn-outline-danger w-100" href="/admin/reports/export.pdf?type=employees&range=<%= range %>&from=<%= from %>&to=<%= to %>">طباعة</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-12">
+      <div class="card card-body">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <div>
+            <div class="fw-bold">التقييم</div>
+            <div class="text-muted small">نسبة الإنجاز (سؤال 1): <span class="fw-semibold"><%= (solvedYesPct==null)?'—':(solvedYesPct+'%') %></span> — متوسط تقييم الموظف (سؤال 2): <span class="fw-semibold"><%= stats.q2_avg?stats.q2_avg.toFixed(2):'—' %></span></div>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" onclick="showTab('tab-feedback')">تفاصيل التقييم</button>
+            <a class="btn btn-outline-danger" href="/admin/reports/export.pdf?type=feedback&range=<%= range %>&from=<%= from %>&to=<%= to %>">طباعة</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="detailsSection" class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+    <div class="fw-bold">تفاصيل التقارير</div>
+    <div class="text-muted small">التصدير والطباعة من داخل كل تقرير</div>
+  </div>
+
+  <ul class="nav nav-tabs" id="reportTabs" role="tablist">
+    <li class="nav-item" role="presentation"><button class="nav-link active" id="tab-status" data-bs-toggle="tab" data-bs-target="#pane-status" type="button" role="tab">الحالات</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" id="tab-services" data-bs-toggle="tab" data-bs-target="#pane-services" type="button" role="tab">الخدمات</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" id="tab-counters" data-bs-toggle="tab" data-bs-target="#pane-counters" type="button" role="tab">الكونترات</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" id="tab-employees" data-bs-toggle="tab" data-bs-target="#pane-employees" type="button" role="tab">الموظفين</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" id="tab-feedback" data-bs-toggle="tab" data-bs-target="#pane-feedback" type="button" role="tab">التقييم</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" id="tab-tickets" data-bs-toggle="tab" data-bs-target="#pane-tickets" type="button" role="tab">التذاكر</button></li>
+  </ul>
+
+  <div class="tab-content bg-white border border-top-0 p-3" id="reportTabsContent">
+    <!-- Status -->
+    <div class="tab-pane fade show active" id="pane-status" role="tabpanel">
+      <div class="d-flex gap-2 flex-wrap mb-2">
+        <a class="btn btn-outline-success btn-sm" href="/admin/reports/export.csv?type=status&range=<%= range %>&from=<%= from %>&to=<%= to %>">تصدير CSV</a>
+        <a class="btn btn-outline-danger btn-sm" href="/admin/reports/export.pdf?type=status&range=<%= range %>&from=<%= from %>&to=<%= to %>">طباعة PDF</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-striped align-middle">
+          <thead><tr><th>الحالة</th><th class="text-center">العدد</th></tr></thead>
+          <tbody id="tb_status">
+          <% statusRows.forEach(r=>{ %>
+            <tr><td><%= statusLabelAr(r.status) %> <span class="text-muted small">(<%= r.status %>)</span></td><td class="text-center fw-semibold"><%= r.count %></td></tr>
+          <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Services -->
+    <div class="tab-pane fade" id="pane-services" role="tabpanel">
+      <div class="d-flex gap-2 flex-wrap mb-2">
+        <a class="btn btn-outline-success btn-sm" href="/admin/reports/export.csv?type=services&range=<%= range %>&from=<%= from %>&to=<%= to %>">تصدير CSV</a>
+        <a class="btn btn-outline-danger btn-sm" href="/admin/reports/export.pdf?type=services&range=<%= range %>&from=<%= from %>&to=<%= to %>">طباعة PDF</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-striped align-middle">
+          <thead><tr>
+            <th>الخدمة</th><th class="text-center">إجمالي</th><th class="text-center">مغلقة</th><th class="text-center">متوسط الانتظار</th><th class="text-center">متوسط الخدمة</th>
+          </tr></thead>
+          <tbody id="tb_services">
+          <% serviceRows.forEach(r=>{ %>
+            <tr>
+              <td><%= r.service_name %></td>
+              <td class="text-center fw-semibold"><%= r.total %></td>
+              <td class="text-center"><%= r.closed %></td>
+              <td class="text-center"><%= r.avg_wait_sec?Math.round(r.avg_wait_sec/60)+' د':'—' %></td>
+              <td class="text-center"><%= r.avg_service_sec?Math.round(r.avg_service_sec/60)+' د':'—' %></td>
+            </tr>
+          <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Counters -->
+    <div class="tab-pane fade" id="pane-counters" role="tabpanel">
+      <div class="d-flex gap-2 flex-wrap mb-2">
+        <a class="btn btn-outline-success btn-sm" href="/admin/reports/export.csv?type=counters&range=<%= range %>&from=<%= from %>&to=<%= to %>">تصدير CSV</a>
+        <a class="btn btn-outline-danger btn-sm" href="/admin/reports/export.pdf?type=counters&range=<%= range %>&from=<%= from %>&to=<%= to %>">طباعة PDF</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-striped align-middle">
+          <thead><tr><th>الكونتر</th><th class="text-center">إجمالي</th><th class="text-center">مغلقة</th></tr></thead>
+          <tbody id="tb_counters">
+          <% counterRows.forEach(r=>{ %>
+            <tr><td><%= r.counter_name %></td><td class="text-center fw-semibold"><%= r.total %></td><td class="text-center"><%= r.closed %></td></tr>
+          <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Employees -->
+    <div class="tab-pane fade" id="pane-employees" role="tabpanel">
+      <div class="d-flex gap-2 flex-wrap mb-2">
+        <a class="btn btn-outline-success btn-sm" href="/admin/reports/export.csv?type=employees&range=<%= range %>&from=<%= from %>&to=<%= to %>">تصدير CSV</a>
+        <a class="btn btn-outline-danger btn-sm" href="/admin/reports/export.pdf?type=employees&range=<%= range %>&from=<%= from %>&to=<%= to %>">طباعة PDF</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-striped align-middle">
+          <thead><tr>
+            <th>الموظف</th><th class="text-center">المعالجة</th><th class="text-center">المغلقة</th><th class="text-center">No-Show</th><th class="text-center">متوسط التقييم</th>
+          </tr></thead>
+          <tbody id="tb_employees">
+          <% employeeRows.forEach(r=>{ %>
+            <tr>
+              <td><%= r.employee_name %></td>
+              <td class="text-center fw-semibold"><%= r.total %></td>
+              <td class="text-center"><%= r.closed %></td>
+              <td class="text-center"><%= r.no_show %></td>
+              <td class="text-center"><%= (r.avg_rating!=null)?r.avg_rating.toFixed(2):'—' %></td>
+            </tr>
+          <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Feedback -->
+    <div class="tab-pane fade" id="pane-feedback" role="tabpanel">
+      <div class="d-flex gap-2 flex-wrap mb-2">
+        <a class="btn btn-outline-success btn-sm" href="/admin/reports/export.csv?type=feedback&range=<%= range %>&from=<%= from %>&to=<%= to %>">تصدير CSV</a>
+        <a class="btn btn-outline-danger btn-sm" href="/admin/reports/export.pdf?type=feedback&range=<%= range %>&from=<%= from %>&to=<%= to %>">طباعة PDF</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-striped align-middle">
+          <thead><tr>
+            <th>التذكرة</th><th>الكونتر</th><th>الموظف</th><th class="text-center">هل تم الإنجاز؟</th><th class="text-center">التقييم</th><th>التاريخ</th>
+          </tr></thead>
+          <tbody>
+          <% feedbackRows.forEach(r=>{ %>
+            <tr>
+              <td class="fw-semibold"><%= r.ticket_code %></td>
+              <td><%= r.counter_name %></td>
+              <td><%= r.employee_name %></td>
+              <td class="text-center"><%= (r.solved_yes_no===true)?'نعم':((r.solved_yes_no===false)?'لا':'—') %></td>
+              <td class="text-center"><%= r.employee_rating || '—' %></td>
+              <td class="small text-muted"><%= r.created_at ? new Date(r.created_at).toLocaleString('ar-SA') : '' %></td>
+            </tr>
+          <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tickets -->
+    <div class="tab-pane fade" id="pane-tickets" role="tabpanel">
+      <div class="d-flex gap-2 flex-wrap mb-2">
+        <a class="btn btn-outline-success btn-sm" href="/admin/reports/export.csv?type=tickets&range=<%= range %>&from=<%= from %>&to=<%= to %>">تصدير CSV</a>
+        <a class="btn btn-outline-danger btn-sm" href="/admin/reports/export.pdf?type=tickets&range=<%= range %>&from=<%= from %>&to=<%= to %>">طباعة PDF</a>
+      </div>
+      <div class="table-responsive" style="max-height:60vh; overflow:auto;">
+        <table class="table table-striped align-middle">
+          <thead><tr>
+            <th>الرقم</th><th>الخدمة</th><th>الاسم</th><th>الهوية</th><th>الجوال</th><th>الكونتر</th><th>الحالة</th><th>تاريخ</th>
+          </tr></thead>
+          <tbody>
+          <% tickets.slice().sort((a,b)=> new Date(b.created_at)-new Date(a.created_at)).forEach(t=>{ 
+              const b = t.beneficiary || {};
+              const c = counterRows.find(x=>x.counter_id===t.assigned_counter_id);
+          %>
+            <tr>
+              <td class="fw-semibold"><%= t.ticket_code %></td>
+              <td><%= t.service_name_ar || t.service_name || '' %></td>
+              <td><%= b.full_name || t.full_name || '' %></td>
+              <td><%= b.national_id || t.national_id || '' %></td>
+              <td><%= b.phone || t.phone || '' %></td>
+              <td><%= c ? c.counter_name : '' %></td>
+              <td><%= statusLabelAr(t.status) %> <span class="text-muted small">(<%= t.status %>)</span></td>
+              <td class="small text-muted"><%= t.created_at ? new Date(t.created_at).toLocaleString('ar-SA') : '' %></td>
+            </tr>
+          <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+<!-- charts: no external CDN -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  function showTab(tabId){
+    try{
+      const el = document.getElementById(tabId);
+      if (!el) return;
+      const t = new bootstrap.Tab(el);
+      t.show();
+      const sec = document.getElementById('detailsSection');
+      if (sec) sec.scrollIntoView({behavior:'smooth', block:'start'});
+    }catch(e){
+      // fallback
+      location.hash = '#detailsSection';
+    }
+  }
+
+  // ---- Charts + Live update (offline, no libraries) ----
+  (function initReportsLive(){
+    const palette = [
+      '#2E86AB', '#1B998B', '#E71D36', '#FF9F1C', '#6C5CE7', '#00B894',
+      '#0984E3', '#D63031', '#E17055', '#FDCB6E', '#74B9FF', '#A29BFE'
+    ];
+
+    const state = {
+      stats: <%- JSON.stringify(stats || {}) %>,
+      range: <%- JSON.stringify(range || 'today') %>,
+      from: <%- JSON.stringify(from || '') %>,
+      to: <%- JSON.stringify(to || '') %>,
+      statusRows: <%- JSON.stringify(statusRows || []) %>,
+      serviceRows: <%- JSON.stringify(serviceRows || []) %>,
+      counterRows: <%- JSON.stringify(counterRows || []) %>,
+      employeeRows: <%- JSON.stringify(employeeRows || []) %>
+    };
+
+    const statusLabelAr = {
+      'NEW':'جديدة',
+      'ASSIGNED':'مُسندة',
+      'CALLED':'تم النداء',
+      'IN_SERVICE':'قيد الخدمة',
+      'CLOSED':'مغلقة',
+      'NO_SHOW':'لم يحضر',
+      'SKIPPED':'متجاوزة/مؤجلة'
+    };
+
+    function clear(c){
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0,0,c.width,c.height);
+      return ctx;
+    }
+    function fitCanvas(c){
+      // Make canvas crisp on high-DPI
+      const dpr = window.devicePixelRatio || 1;
+      const rect = c.getBoundingClientRect();
+      c.width = Math.round(rect.width * dpr);
+      c.height = Math.round(rect.height * dpr);
+      const ctx = c.getContext('2d');
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      return ctx;
+    }
+
+    function drawDoughnut(canvas, labels, values){
+      if (!canvas) return;
+      const ctx = fitCanvas(canvas);
+      const w = canvas.getBoundingClientRect().width;
+      const h = canvas.getBoundingClientRect().height;
+      const cx = w/2, cy = h/2;
+      const r = Math.min(w,h)*0.38;
+      const r2 = r*0.62;
+      const total = values.reduce((a,b)=>a+b,0) || 1;
+
+      let a0 = -Math.PI/2;
+      values.forEach((v,i)=>{
+        const ang = (v/total) * Math.PI*2;
+        ctx.beginPath();
+        ctx.moveTo(cx,cy);
+        ctx.fillStyle = palette[i%palette.length];
+        ctx.arc(cx,cy,r,a0,a0+ang);
+        ctx.closePath();
+        ctx.fill();
+        a0 += ang;
+      });
+
+      // hole
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(cx,cy,r2,0,Math.PI*2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+
+      // center text
+      ctx.fillStyle = '#111';
+      ctx.font = '700 18px system-ui, -apple-system, Segoe UI, Arial';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(String(total), cx, cy);
+
+      // Simple legend below canvas
+      const wrap = canvas.parentElement;
+      if (wrap && !wrap.querySelector('.mini-legend')){
+        const ul = document.createElement('div');
+        ul.className = 'mini-legend mt-2';
+        ul.style.display='grid';
+        ul.style.gridTemplateColumns='repeat(2, minmax(0,1fr))';
+        ul.style.gap='6px 10px';
+        labels.forEach((lab,i)=>{
+          const row = document.createElement('div');
+          row.style.display='flex';
+          row.style.alignItems='center';
+          row.style.gap='8px';
+          const dot = document.createElement('span');
+          dot.style.width='10px'; dot.style.height='10px'; dot.style.borderRadius='999px';
+          dot.style.background = palette[i%palette.length];
+          const t = document.createElement('span');
+          t.className='small text-muted';
+          t.textContent = lab + ' — ' + values[i];
+          row.appendChild(dot); row.appendChild(t);
+          ul.appendChild(row);
+        });
+        wrap.appendChild(ul);
+      }
+    }
+
+    function drawBar(canvas, labels, series){
+      if (!canvas) return;
+      const ctx = fitCanvas(canvas);
+      const w = canvas.getBoundingClientRect().width;
+      const h = canvas.getBoundingClientRect().height;
+
+      const pad = {l: 28, r: 10, t: 10, b: 34};
+      const innerW = w - pad.l - pad.r;
+      const innerH = h - pad.t - pad.b;
+
+      const allVals = series.flatMap(s=>s.values);
+      const maxV = Math.max(1, ...allVals);
+
+      // grid lines
+      ctx.strokeStyle = 'rgba(0,0,0,.08)';
+      ctx.lineWidth = 1;
+      for (let i=0;i<=4;i++){
+        const y = pad.t + innerH*(i/4);
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+innerW, y); ctx.stroke();
+      }
+
+      const n = labels.length || 1;
+      const groupW = innerW / n;
+      const barW = Math.min(26, groupW/(series.length+1));
+
+      labels.forEach((lab, i)=>{
+        const x0 = pad.l + i*groupW + (groupW - (barW*series.length + (series.length-1)*6))/2;
+        series.forEach((s, j)=>{
+          const v = s.values[i] || 0;
+          const bh = (v/maxV) * innerH;
+          const x = x0 + j*(barW+6);
+          const y = pad.t + innerH - bh;
+          ctx.fillStyle = s.color;
+          ctx.fillRect(x, y, barW, bh);
+        });
+
+        // label (short)
+        const label = String(lab||'').slice(0,10);
+        ctx.save();
+        ctx.translate(pad.l + i*groupW + groupW/2, pad.t + innerH + 18);
+        ctx.rotate(-0.35);
+        ctx.fillStyle = 'rgba(0,0,0,.65)';
+        ctx.font = '600 11px system-ui, -apple-system, Segoe UI, Arial';
+        ctx.textAlign='center';
+        ctx.fillText(label, 0, 0);
+        ctx.restore();
+      });
+
+      // y max
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.font = '600 11px system-ui, -apple-system, Segoe UI, Arial';
+      ctx.textAlign='left'; ctx.textBaseline='top';
+      ctx.fillText(String(maxV), 2, pad.t);
+    }
+
+    function renderAll(){
+      // Status chart
+      drawDoughnut(
+        document.getElementById('chStatus'),
+        (state.statusRows||[]).map(r=>statusLabelAr[r.status] || r.status),
+        (state.statusRows||[]).map(r=>r.count||0)
+      );
+
+      // Services chart (top 8 totals)
+      const sv = (state.serviceRows || []).slice().sort((a,b)=> (b.total||0)-(a.total||0)).slice(0,8);
+      drawBar(
+        document.getElementById('chServices'),
+        sv.map(r=>r.service_name),
+        [{ label:'إجمالي', values: sv.map(r=>r.total||0), color: palette[0] }]
+      );
+
+      // Counters chart (total vs closed)
+      const ct = (state.counterRows || []).slice().sort((a,b)=> (b.total||0)-(a.total||0));
+      drawBar(
+        document.getElementById('chCounters'),
+        ct.map(r=>r.counter_name),
+        [
+          { label:'إجمالي', values: ct.map(r=>r.total||0), color: palette[1] },
+          { label:'مغلقة', values: ct.map(r=>r.closed||0), color: palette[2] }
+        ]
+      );
+    }
+
+    function fmtMin(sec){
+      const n = Number(sec);
+      if (!Number.isFinite(n)) return '—';
+      return Math.round(n/60) + ' د';
+    }
+
+    function setText(id, v){
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = String(v);
+    }
+
+    function updateKPIs(){
+      const s = state.stats || {};
+      const pending = Math.max(0, (Number(s.tickets_total)||0) - (Number(s.tickets_closed)||0));
+      setText('kpi_total', Number(s.tickets_total)||0);
+      setText('kpi_pending', pending);
+      setText('kpi_closed', Number(s.tickets_closed)||0);
+      setText('kpi_avg_wait', fmtMin(s.avg_wait_sec));
+      setText('kpi_avg_service', fmtMin(s.avg_service_sec));
+      const fb = Number(s.feedback_total)||0;
+      const rt = (s.q2_avg!=null && isFinite(s.q2_avg)) ? Number(s.q2_avg).toFixed(2) : '—';
+      const kfb = document.getElementById('kpi_feedback');
+      const krt = document.getElementById('kpi_rating');
+      if (kfb) kfb.firstChild.textContent = String(fb) + ' ';
+      if (krt) krt.textContent = '/ ' + rt;
+
+      setText('tile_status_count', (state.statusRows||[]).length);
+      setText('tile_services_count', (state.serviceRows||[]).length);
+      setText('tile_counters_count', (state.counterRows||[]).length);
+      setText('tile_employees_count', (state.employeeRows||[]).length);
+    }
+
+    function statusLabel(st){
+      return statusLabelAr[st] || st;
+    }
+
+    function renderTableStatus(){
+      const tb = document.getElementById('tb_status');
+      if (!tb) return;
+      tb.innerHTML = '';
+      (state.statusRows||[]).forEach(r=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${statusLabel(r.status)} <span class="text-muted small">(${r.status})</span></td><td class="text-center fw-semibold">${r.count||0}</td>`;
+        tb.appendChild(tr);
+      });
+    }
+
+    function renderTableServices(){
+      const tb = document.getElementById('tb_services');
+      if (!tb) return;
+      tb.innerHTML = '';
+      (state.serviceRows||[]).forEach(r=>{
+        const avgW = r.avg_wait_sec ? (Math.round(r.avg_wait_sec/60)+' د') : '—';
+        const avgS = r.avg_service_sec ? (Math.round(r.avg_service_sec/60)+' د') : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.service_name}</td><td class="text-center fw-semibold">${r.total||0}</td><td class="text-center">${r.closed||0}</td><td class="text-center">${avgW}</td><td class="text-center">${avgS}</td>`;
+        tb.appendChild(tr);
+      });
+    }
+
+    function renderTableCounters(){
+      const tb = document.getElementById('tb_counters');
+      if (!tb) return;
+      tb.innerHTML = '';
+      (state.counterRows||[]).forEach(r=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.counter_name}</td><td class="text-center fw-semibold">${r.total||0}</td><td class="text-center">${r.closed||0}</td>`;
+        tb.appendChild(tr);
+      });
+    }
+
+    function renderTableEmployees(){
+      const tb = document.getElementById('tb_employees');
+      if (!tb) return;
+      tb.innerHTML = '';
+      (state.employeeRows||[]).forEach(r=>{
+        const avg = (r.avg_rating!=null && isFinite(r.avg_rating)) ? Number(r.avg_rating).toFixed(2) : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.employee_name}</td><td class="text-center fw-semibold">${r.total||0}</td><td class="text-center">${r.closed||0}</td><td class="text-center">${r.no_show||0}</td><td class="text-center">${avg}</td>`;
+        tb.appendChild(tr);
+      });
+    }
+
+    function renderAllTables(){
+      renderTableStatus();
+      renderTableServices();
+      renderTableCounters();
+      renderTableEmployees();
+    }
+
+    function removeLegends(){
+      document.querySelectorAll('.mini-legend').forEach(x=>x.remove());
+    }
+
+    function setLiveStatus(ok, atStr){
+      const dot = document.getElementById('liveDot');
+      const at = document.getElementById('liveAt');
+      if (dot) dot.style.background = ok ? '#198754' : '#dc3545';
+      if (at) at.textContent = atStr || '—';
+    }
+
+    async function fetchLive(){
+      const url = `/admin/reports/live.json?range=${encodeURIComponent(state.range)}&from=${encodeURIComponent(state.from)}&to=${encodeURIComponent(state.to)}`;
+      const r = await fetch(url, { cache:'no-store', headers:{'Accept':'application/json'} });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      if (!j || !j.ok) throw new Error(j && j.error ? j.error : 'bad response');
+      state.stats = j.stats || state.stats;
+      state.statusRows = j.statusRows || [];
+      state.serviceRows = j.serviceRows || [];
+      state.counterRows = j.counterRows || [];
+      state.employeeRows = j.employeeRows || [];
+      const atStr = j.at ? new Date(j.at).toLocaleString('ar-SA') : new Date().toLocaleString('ar-SA');
+      setLiveStatus(true, atStr);
+      updateKPIs();
+      removeLegends();
+      renderAll();
+      renderAllTables();
+    }
+
+    let inFlight = false;
+    async function tick(){
+      if (inFlight) return;
+      inFlight = true;
+      try{ await fetchLive(); }
+      catch(e){ setLiveStatus(false, 'غير متصل'); }
+      finally{ inFlight = false; }
+    }
+
+    // expose manual refresh button
+    window.manualRefresh = function(){ tick(); };
+
+    // Initial paint
+    updateKPIs();
+    renderAll();
+    renderAllTables();
+    setLiveStatus(true, '—');
+
+    // Auto refresh every 10s
+    setTimeout(tick, 600);
+    setInterval(tick, 10000);
+
+    // Redraw on resize (debounced)
+    let to=null;
+    window.addEventListener('resize', ()=>{
+      clearTimeout(to);
+      to=setTimeout(()=>{
+        removeLegends();
+        renderAll();
+      }, 250);
+    }, {passive:true});
+  })();
+
+</script>
+</body>
+</html>

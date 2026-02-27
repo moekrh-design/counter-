@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" role="img" aria-label="شعار افتراضي">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#19b394"/>
+      <stop offset="1" stop-color="#1f6fb2"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="24" y="24" width="272" height="272" rx="56" fill="#0b1220" stroke="url(#g)" stroke-width="6"/>
+
+  <circle cx="160" cy="136" r="52" fill="url(#g)" opacity="0.95"/>
+  <circle cx="160" cy="136" r="32" fill="#0b1220" opacity="0.9"/>
+
+  <path d="M120 214 C140 196 180 196 200 214" fill="none" stroke="url(#g)" stroke-width="10" stroke-linecap="round"/>
+  <path d="M106 110 L92 96" stroke="url(#g)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M214 110 L228 96" stroke="url(#g)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M160 86 L160 66" stroke="url(#g)" stroke-width="8" stroke-linecap="round"/>
+
+  <text x="160" y="265" text-anchor="middle" font-size="24" font-family="Tajawal, Arial, sans-serif" fill="#e8eefc" opacity="0.95">وزارة التعليم</text>
+  <text x="160" y="290" text-anchor="middle" font-size="14" font-family="Tajawal, Arial, sans-serif" fill="#a8b3c7" opacity="0.95">شعار افتراضي</text>
+</svg>

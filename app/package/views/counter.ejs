@@ -1,0 +1,914 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لوحة الكونتر</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="/public/app.css" rel="stylesheet">
+<link href="/public/moe-ui.css" rel="stylesheet">
+<script src="/public/app.js"></script>
+
+</head>
+<body data-user-role="counter">
+<!-- Fixed success banner to make the close confirmation impossible to miss -->
+<div id="closeFixedBanner" class="position-fixed top-0 start-0 w-100" style="z-index:1060; display:<%= (typeof closedFlag !== 'undefined' && closedFlag) ? 'block' : 'none' %>;">
+  <div class="container-fluid py-2">
+    <div class="alert alert-success d-flex align-items-center justify-content-between mb-0" role="alert" style="border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.12)">
+      <div class="fw-bold">تم إغلاق الحالة بنجاح ✅</div>
+      <button type="button" class="btn btn-sm btn-outline-success" onclick="document.getElementById('closeFixedBanner').style.display='none'">إخفاء</button>
+    </div>
+  </div>
+</div>
+<div class="container-fluid py-3">
+  <%- include('partials_nav') %>
+
+  <script>
+    // Extra reliability layer: if the page was redirected very quickly after closing,
+    // we still show the "تم الإغلاق" message once using sessionStorage.
+    (function(){
+      try{
+        const k='bcs_closed_flash';
+        const v=sessionStorage.getItem(k);
+        if (v==='1'){
+          sessionStorage.removeItem(k);
+          const b=document.getElementById('closeFixedBanner');
+          if (b) b.style.display='block';
+          const a=document.getElementById('closeAlert');
+          if (a){ a.textContent='تم إغلاق الحالة بنجاح ✅'; a.classList.remove('d-none'); }
+          const h=document.getElementById('closeAlertHint');
+          if (h) h.classList.remove('d-none');
+        }
+      }catch(e){}
+    })();
+  </script>
+
+  <div id="uiToast" class="ui-toast" role="status" aria-live="polite"></div>
+  <!-- Strong, hard-to-miss success banner (used after closing a case) -->
+  <div id="closeOverlay" class="position-fixed top-0 start-0 w-100 h-100" style="display:none; z-index:1055; background:rgba(0,0,0,.45)">
+    <div class="h-100 d-flex align-items-center justify-content-center p-3">
+      <div class="ui-card" style="max-width:520px; width:100%; border-radius:22px; box-shadow:0 20px 60px rgba(0,0,0,.25)">
+        <div class="p-4">
+          <div class="d-flex align-items-center gap-3">
+            <div style="width:54px;height:54px;border-radius:18px;background:#1f8f4a;display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;font-weight:800">✓</div>
+            <div>
+              <div class="h5 fw-bold mb-1">تم إغلاق الحالة بنجاح</div>
+              <div class="text-muted">تم حفظ البيانات وتصفير الحقول. سيتم تحديث الشاشة تلقائيًا.</div>
+            </div>
+          </div>
+          <div class="d-flex justify-content-end gap-2 mt-4">
+            <button class="btn btn-outline-secondary" onclick="hideCloseOverlay()">إغلاق</button>
+            <button class="btn btn-primary" onclick="refreshAfterClose()">تحديث الآن</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="closeAlert" class="alert alert-success mt-3 <%= (typeof closedFlag !== 'undefined' && closedFlag) ? '' : 'd-none' %>" role="alert"><%= (typeof closedFlag !== 'undefined' && closedFlag) ? 'تم إغلاق الحالة بنجاح ✅' : '' %></div>
+  <div id="closeAlertHint" class="text-muted small <%= (typeof closedFlag !== 'undefined' && closedFlag) ? '' : 'd-none' %>" style="margin-top:-8px">تم تحديث الشاشة ويمكنك متابعة الخدمة.</div>
+
+  <%
+    // Beneficiary types
+    // NOTE: We keep legacy keys (student/parent) for old tickets, while using the new combined key going forward.
+    const benLabelAr = {
+      parent_student:'ولي أمر / طالب',
+      student:'ولي أمر / طالب',
+      parent:'ولي أمر / طالب',
+      teacher:'معلم',
+      staff:'إداري',
+      investor:'مستثمر',
+      edu_researcher:'باحث تعليمي',
+      other:'أخرى'
+    };
+    const benLabelEn = {
+      parent_student:'Parent / Student',
+      student:'Parent / Student',
+      parent:'Parent / Student',
+      teacher:'Teacher',
+      staff:'Administrative staff',
+      investor:'Investor',
+      edu_researcher:'Educational researcher',
+      other:'Other'
+    };
+    const maskId = (id)=>{ if(!id) return ''; const s=String(id); return s.length<=4 ? s : ('****' + s.slice(-4)); };
+  %>
+
+  <div class="row g-3">
+  <div class="col-12 order-1">
+      <div class="card p-4">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="muted">الكونتر</div>
+            <div class="h3 fw-bold mb-0"><%= counter.name %></div>
+            <div class="muted mt-1">الموظف: <%= user.full_name %></div>
+          </div>
+          <div class="d-flex flex-column align-items-end gap-2">
+            <span class="badge text-bg-primary">Active</span>
+            <a class="btn btn-outline-danger btn-sm" href="/counter/logout" onclick="return confirm('تأكيد إغلاق الكونتر؟ سيتم إنهاء جلستك الحالية.')">إغلاق الكونتر</a>
+          </div>
+        </div>
+
+        <hr class="my-3"/>
+
+        <div class="fw-bold mb-2">تحكم سريع</div>
+        <div class="d-grid gap-2">
+          <button id="btnCallNext" type="button" class="btn btn-primary btn-lg py-3 fs-4">استدعاء التالي</button>
+          <a class="btn btn-outline-success btn-lg py-3 fs-4" target="_blank" href="/display/counter/<%= counter.id %>">فتح شاشة رقم الكونتر</a>
+          <div class="muted small" style="word-break:break-all">رابط الشاشة: <span id="counterDisplayUrl"></span> <button class="btn btn-sm btn-outline-secondary ms-1" onclick="copyCounterDisplayLink()">نسخ</button></div>
+          <% if (currentCalled) { %>
+            <button id="btnStartService" type="button" class="btn btn-outline-primary btn-lg py-2 fs-5" data-ticket-id="<%= currentCalled.id %>">بدء الخدمة للمنادى</button>
+            <div class="d-grid gap-2">
+              <button class="btn btn-outline-warning btn-lg py-2 fs-5" onclick="noShow('<%= currentCalled.id %>')">إعادة نداء</button>
+              <button class="btn btn-outline-secondary btn-lg py-2 fs-5" onclick="skipTicket('<%= currentCalled.id %>')">تجاوز (إبقاء الرقم)</button>
+            </div>
+          <% } %>
+
+          <% if (currentInService || currentCalled) { %>
+          <div class="border rounded p-3 mt-2 bg-light">
+            <div class="fw-bold mb-2">تحويل المستفيد لكونتر آخر (بنفس الرقم)</div>
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-6">
+                <label class="form-label">اختر الكونتر</label>
+                <select class="form-select" id="transfer_counter_id">
+                  <option value="">اختر…</option>
+                  <% (counters||[]).filter(c=>c.id!==counter.id).forEach(c=>{ %>
+                    <option value="<%= c.id %>"><%= c.name %></option>
+                  <% }) %>
+                </select>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label">ملاحظة (اختياري)</label>
+                <input class="form-control" id="transfer_note" placeholder="سبب التحويل أو الجهة…">
+              </div>
+              <div class="col-12">
+                <button class="btn btn-outline-danger w-100" onclick="transferTicket()">تحويل الآن</button>
+                <div class="muted small mt-2">سيتم إعادة التذكرة لطابور الكونتر المختار دون تغيير رقمها.</div>
+              </div>
+            </div>
+          </div>
+          <% } %>
+        </div>
+
+        
+
+
+
+  <div class="col-12 order-2">
+      <div class="card p-4">
+        <h4 class="fw-bold mb-3">الحالة الحالية</h4>
+
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <div class="p-3 bg-light rounded">
+              <div class="muted">منادى</div>
+              <div class="h2 fw-bold mb-0"><%= currentCalled ? currentCalled.ticket_code : '—' %></div>
+              <div class="muted"><%= currentCalled ? currentCalled.service_name : '' %></div>
+              <% if (currentCalled && currentCalled.beneficiary){ const b=currentCalled.beneficiary; %>
+                <div class="muted small">
+                  اسم: <%= (b.full_name || '-') %>
+                  •
+                  فئة: <%= benLabelAr[b.beneficiary_type] || b.beneficiary_type || '-' %>
+                  • هوية: <%= maskId(b.national_id) %>
+                  <% if (b.phone){ %> • جوال: <%= b.phone %> <% } %>
+                  <% if (b.previous_ref){ %> • طلب سابق: <%= b.previous_ref %> <% } %>
+                </div>
+              <% } %>
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="p-3 bg-light rounded">
+              <div class="muted">قيد الخدمة</div>
+              <div class="h2 fw-bold mb-0"><%= currentInService ? currentInService.ticket_code : '—' %></div>
+              <div class="muted"><%= currentInService ? currentInService.service_name : '' %></div>
+              <% if (currentInService && currentInService.beneficiary){ const b=currentInService.beneficiary; %>
+                <div class="muted small">
+                  فئة: <%= benLabelAr[b.beneficiary_type] || b.beneficiary_type || '-' %>
+                  • هوية: <%= maskId(b.national_id) %>
+                  <% if (b.phone){ %> • جوال: <%= b.phone %> <% } %>
+                  <% if (b.previous_ref){ %> • طلب سابق: <%= b.previous_ref %> <% } %>
+                </div>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
+        
+<hr class="my-4"/>
+
+<h5 class="fw-bold">إدارة التذكرة (الحقول + المرفقات)</h5>
+<div class="muted mb-3">هذه الحقول للحفظ الداخلي، ويمكنك تحديثها أثناء الخدمة قبل الإغلاق.</div>
+
+<div class="row g-2 align-items-end">
+  <div class="col-12 col-md-4">
+    <label class="form-label">التذكرة</label>
+    <select class="form-select" id="edit_ticket_id">
+      <option value="">اختر…</option>
+      <% if (currentInService) { %>
+        <option value="<%= currentInService.id %>" selected><%= currentInService.ticket_code %> (قيد الخدمة)</option>
+      <% } else if (currentCalled) { %>
+        <option value="<%= currentCalled.id %>" selected><%= currentCalled.ticket_code %> (منادى)</option>
+      <% } %>
+      <% if (currentInService && currentCalled) { %>
+        <option value="<%= currentCalled.id %>"><%= currentCalled.ticket_code %> (منادى)</option>
+      <% } %>
+    </select>
+  </div>
+
+  <div class="col-12 col-md-4">
+    <label class="form-label">الأولوية</label>
+    <select class="form-select" id="case_priority">
+      <option value="low">منخفضة</option>
+      <option value="normal" selected>عادية</option>
+      <option value="high">عالية</option>
+    </select>
+  </div>
+
+  <div class="col-12 col-md-4">
+    <label class="form-label">قناة الطلب</label>
+    <select class="form-select" id="case_channel">
+      <option value="walkin" selected>حضور</option>
+      <option value="phone">هاتف</option>
+      <option value="email">بريد</option>
+      <option value="portal">بوابة/نظام</option>
+      <option value="other">أخرى</option>
+    </select>
+  </div>
+
+  <div class="col-12">
+    <div class="border rounded p-3 bg-light">
+      <div class="fw-bold mb-1">بيانات المستفيد (من شاشة الكشك)</div>
+      <div id="selected_beneficiary" class="muted">اختر تذكرة ليتم عرض بيانات المستفيد تلقائيًا.</div>
+    </div>
+  </div>
+
+  <div class="col-12 col-md-6">
+    <label class="form-label">التصنيف / نوع الطلب</label>
+    <input class="form-control" id="case_category" placeholder="مثال: نقل طالب / بيانات معلم / استثمار…">
+  </div>
+
+  <!-- رقم الجوال يتم عرضه ضمن بيانات المستفيد لتجنب التكرار -->
+
+  <div class="col-12 col-md-6">
+    <label class="form-label">جهة التحويل (عند التحويل)</label>
+    <input class="form-control" id="case_transfer_to" placeholder="مثال: شؤون الطلاب / الموارد البشرية…">
+  </div>
+  <div class="col-12 col-md-6">
+    <label class="form-label">متابعة مطلوبة من (عند المتابعة)</label>
+    <input class="form-control" id="case_awaiting_from" placeholder="مثال: المستفيد / قسم آخر…">
+  </div>
+
+  <div class="col-12 col-md-4">
+    <label class="form-label">تاريخ استحقاق المتابعة</label>
+    <input class="form-control" type="date" id="case_due_date">
+    <div class="invalid-feedback">مطلوب عند اختيار (يتطلب متابعة)</div>
+  </div>
+
+  <div class="col-12 col-md-8">
+    <label class="form-label">ملاحظات داخلية (لا تظهر للمستفيد)</label>
+    <textarea class="form-control" id="case_internal_notes" rows="2" placeholder="ملاحظات الموظف…"></textarea>
+  </div>
+
+  <div class="col-12">
+    <div class="muted small">يتم حفظ الحقول تلقائيًا أثناء الكتابة.</div>
+  </div>
+</div>
+
+<div class="mt-3 border rounded p-3 bg-light">
+  <div class="d-flex justify-content-between align-items-center">
+    <div class="fw-bold">مرفقات التذكرة</div>
+    <div class="muted small">يتم حفظ الملف محليًا داخل النظام</div>
+  </div>
+  <div class="row g-2 mt-2 align-items-end">
+    <div class="col-12 col-md-8">
+      <input type="file" class="form-control" id="attach_file">
+    </div>
+    <div class="col-12 col-md-4">
+      <button class="btn btn-outline-success w-100" onclick="uploadAttachment()">رفع المرفق</button>
+    </div>
+  </div>
+  <div id="attachments_list" class="mt-2"></div>
+</div>
+
+<div class="mt-3 border rounded p-3">
+  <div class="fw-bold mb-2">حجز موعد (لقاء مسؤول)</div>
+  <div class="muted small mb-2">يظهر هذا القسم فقط إذا كانت الخدمة “حجز لقاء مسؤول” أو إذا أردت حجز الموعد من داخل التذكرة.</div>
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-6">
+      <label class="form-label">اليوم المتاح</label>
+      <input class="form-control" id="appt_date" type="date">
+    </div>
+    <div class="col-12 col-md-6">
+      <label class="form-label">الوقت</label>
+      <select class="form-select" id="appt_slot"></select>
+    </div>
+    <div class="col-12">
+      <button class="btn btn-outline-primary" onclick="bookAppointment()">حجز الموعد للتذكرة</button>
+      <div class="muted small mt-2" id="appt_hint"></div>
+    </div>
+  </div>
+</div>
+
+
+<hr class="my-4"/>
+
+        <h5 class="fw-bold">إغلاق التذكرة</h5>
+        <div class="muted mb-3">اختر التذكرة قيد الخدمة أو المناداة ثم أغلقها مع الملخص.</div>
+
+        <div class="row g-2">
+          <div class="col-12 col-md-4">
+            <label class="form-label">التذكرة <span class="text-danger">*</span></label>
+            <select class="form-select" id="close_ticket_id">
+              <option value="">اختر…</option>
+              <% if (currentInService) { %>
+                <option value="<%= currentInService.id %>"><%= currentInService.ticket_code %> (قيد الخدمة)</option>
+              <% } %>
+              <% if (currentCalled) { %>
+                <option value="<%= currentCalled.id %>"><%= currentCalled.ticket_code %> (منادى)</option>
+              <% } %>
+            </select>
+            <div class="invalid-feedback">حقل إلزامي</div>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">النتيجة</label>
+            <select class="form-select" id="outcome_status">
+              <option value="CLOSED_RESOLVED">تم الإنجاز</option>
+              <option value="CLOSED_TRANSFERRED">تم التحويل</option>
+              <option value="CLOSED_AWAITING">يتطلب متابعة</option>
+              <option value="CLOSED_NOT_RESOLVED">لم يتم الإنجاز</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">سبب عدم الإنجاز (اختياري)</label>
+            <input class="form-control" id="not_resolved_reason" placeholder="مثال: نقص مستند">
+            <div class="invalid-feedback">مطلوب عند اختيار (لم يتم الإنجاز)</div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">ملخص الطلب <span class="text-danger">*</span></label>
+            <input class="form-control" id="summary" placeholder="اكتب ملخصًا سريعًا">
+            <div class="invalid-feedback">حقل إلزامي</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label">تفاصيل (اختياري)</label>
+            <textarea class="form-control" id="details" rows="3"></textarea>
+          </div>
+          <div class="col-12 d-flex align-items-end">
+            <!-- Important: this button must NOT submit the surrounding form; otherwise the page reloads and the success message never shows. -->
+            <div id="closeInlineMsg" class="alert alert-success d-none" style="border-radius:16px;" role="alert">تم إغلاق الحالة بنجاح ✅</div>
+            <button id="btnCloseAndEval" type="button" class="btn btn-success w-100" onclick="closeTicket()">إغلاق التذكرة فقط</button>
+          </div>
+        </div>
+
+        <hr class="my-4"/>
+
+        <h5 class="fw-bold">طابور الكونتر</h5>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>الرقم</th><th>الخدمة</th><th>المستفيد</th><th>الحالة</th><th>وقت الإصدار</th></tr></thead>
+            <tbody>
+              <% queue.forEach(t => { %>
+                <tr>
+                  <td class="fw-bold"><%= t.ticket_code %></td>
+                  <td><%= t.service_name %></td>
+                  <td class="muted"><% const b = t.beneficiary || {}; %><%= (benLabelAr[b.beneficiary_type]||b.beneficiary_type||'-') %> / <%= maskId(b.national_id)||'-' %><%= b.previous_ref ? (' / ' + b.previous_ref) : '' %></td>
+                  <td><span class="badge text-bg-secondary"><%= t.status %></span></td>
+                  <td class="muted"><%= new Date(t.created_at).toLocaleTimeString() %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+
+        <% if (skipped && skipped.length) { %>
+          <hr class="my-4"/>
+          <h5 class="fw-bold">الأرقام المتجاوزة (مؤجلة)</h5>
+          <div class="muted small mb-2">هذه الأرقام لم يتم إلغاؤها — يمكنك استدعاؤها يدويًا متى ما حضر المستفيد.</div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead><tr><th>الرقم</th><th>الخدمة</th><th>المستفيد</th><th>آخر تحديث</th><th>سبب</th><th class="text-end">إجراء</th></tr></thead>
+              <tbody>
+                <% skipped.forEach(t => { %>
+                  <tr>
+                    <td class="fw-bold"><%= t.ticket_code %></td>
+                    <td><%= t.service_name %></td>
+                    <td class="muted"><% const b = t.beneficiary || {}; %><%= (benLabelAr[b.beneficiary_type]||b.beneficiary_type||'-') %> / <%= maskId(b.national_id)||'-' %><%= b.previous_ref ? (' / ' + b.previous_ref) : '' %></td>
+                    <td class="muted"><%= new Date(t.skipped_at||t.called_at||t.created_at).toLocaleTimeString() %></td>
+                    <td class="muted"><%= (t.skip_reason || '-') %></td>
+                    <td class="text-end">
+                      <button class="btn btn-sm btn-outline-primary" onclick="noShow('<%= t.id %>')">استدعاء</button>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const __counterDisplayUrl = window.location.origin + '/display/counter/<%= counter.id %>' ;
+(function(){
+  // Show a persistent confirmation banner if redirected after closing
+  try{
+    const qs = new URLSearchParams(window.location.search);
+    const flash = (sessionStorage && sessionStorage.getItem('flash_closed')) ? '1' : '';
+    if (qs.get('closed') === '1' || flash === '1'){
+      const a = document.getElementById('closeAlert');
+      if (a){
+        a.textContent = 'تم إغلاق الحالة بنجاح ✅';
+        a.classList.remove('d-none');
+      }
+      const h = document.getElementById('closeAlertHint');
+      if (h) h.classList.remove('d-none');
+      showToast('تم إغلاق الحالة بنجاح ✅');
+      try{ showCloseOverlay(); }catch(e){}
+      try{ sessionStorage.removeItem('flash_closed'); }catch(e){}
+      // Clean the URL so it doesn't keep showing
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }catch(e){}
+})();
+(function(){
+  const el = document.getElementById('counterDisplayUrl');
+  if (el) el.textContent = __counterDisplayUrl;
+})();
+function copyCounterDisplayLink(){
+  try{
+    navigator.clipboard.writeText(__counterDisplayUrl);
+    alert('تم نسخ الرابط');
+  }catch(e){
+    prompt('انسخ الرابط:', __counterDisplayUrl);
+  }
+}
+
+async function callNext(ev){
+  if (ev && ev.preventDefault) ev.preventDefault();
+  const btn = document.getElementById('btnCallNext');
+  const prevText = btn ? btn.textContent : '';
+  if (btn){
+    btn.disabled = true;
+    btn.textContent = 'جارٍ الاستدعاء…';
+  }
+  try{
+    const r = await postJson('/counter/next', {});
+    if (!r){
+      alert('تعذر استدعاء التالي.');
+      return;
+    }
+    if (!r.ok){
+      alert(r.msg || 'تعذر استدعاء التالي.');
+      return;
+    }
+    if (!r.called){
+      alert('لا توجد تذاكر متاحة الآن.');
+      return;
+    }
+    location.reload();
+  }catch(e){
+    alert('تعذر استدعاء التالي (خطأ في الاتصال أو المسار).');
+  }finally{
+    if (btn){
+      btn.disabled = false;
+      btn.textContent = prevText || 'استدعاء التالي';
+    }
+  }
+ }
+
+// Robust click binding (covers cases where inline onclick is blocked or not fired)
+function __bindCallNext(){
+  const btn = document.getElementById('btnCallNext');
+  if (!btn) return;
+  if (btn.dataset.bound === '1') return;
+  btn.dataset.bound = '1';
+  btn.addEventListener('click', function(e){
+    callNext(e);
+  });
+}
+if (document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', __bindCallNext);
+}else{
+  __bindCallNext();
+}
+async function startService(ticketId){
+  const r = await postJson('/counter/start', {ticket_id: ticketId});
+  if(r && r.ok) location.reload();
+}
+
+async function noShow(ticketId){
+  const r = await postJson('/counter/no_show', {ticket_id: ticketId});
+  if (!r || !r.ok) return;
+  if (r.warn){
+    alert(`تمت إعادة النداء (المرة ${r.call_round}).\nإذا لم يحضر المستفيد يمكنك استخدام زر (تجاوز) لإبقاء الرقم دون إلغاء.`);
+  }
+  location.reload();
+}
+
+async function skipTicket(ticketId){
+  const reason = prompt('سبب التجاوز (اختياري):', '') || '';
+  const r = await postJson('/counter/skip', {ticket_id: ticketId, reason});
+  if (!r || !r.ok){
+    alert((r && r.msg) ? r.msg : 'تعذر التجاوز.');
+    return;
+  }
+  location.reload();
+}
+
+const __currentCalledId = '<%= currentCalled ? currentCalled.id : '' %>';
+const __currentInServiceId = '<%= currentInService ? currentInService.id : '' %>';
+
+async function transferTicket(){
+  const toId = document.getElementById('transfer_counter_id')?.value;
+  if (!toId){
+    alert('اختر الكونتر الهدف');
+    return;
+  }
+  const ticketId = __currentInServiceId || __currentCalledId;
+  if (!ticketId){
+    alert('لا توجد تذكرة نشطة للتحويل');
+    return;
+  }
+  const note = (document.getElementById('transfer_note')?.value || '').trim();
+  if (!confirm('تأكيد تحويل التذكرة للكونتر الآخر؟ سيبقى نفس الرقم.')) return;
+  const r = await postJson('/counter/transfer', { ticket_id: ticketId, target_counter_id: toId, note });
+  if (!r || !r.ok){
+    alert((r && r.msg) ? r.msg : 'تعذر التحويل');
+    return;
+  }
+  showToast('تم تحويل التذكرة بنجاح ✅');
+  setTimeout(()=>{ try{ location.replace('/counter'); }catch(e){ location.reload(); } }, 1200);
+}
+
+function showToast(msg){
+  const el = document.getElementById('uiToast');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.opacity = '1';
+  clearTimeout(el.__t);
+  el.__t = setTimeout(()=>{ try{ el.style.opacity='0'; }catch(e){} }, 3200);
+  clearTimeout(el.__t2);
+  // hide after fade-out finishes
+  el.__t2 = setTimeout(()=>{ try{ el.style.display='none'; }catch(e){} }, 3600);
+}
+
+function showCloseOverlay(){
+  const el = document.getElementById('closeOverlay');
+  if (!el) return;
+  el.style.display = 'block';
+}
+function hideCloseOverlay(){
+  const el = document.getElementById('closeOverlay');
+  if (!el) return;
+  el.style.display = 'none';
+}
+function refreshAfterClose(){
+  try{ location.replace(window.location.pathname + '?closed=1&ts=' + Date.now()); }
+  catch(e){ location.reload(); }
+}
+
+async function closeTicket(){
+  const ticketId = document.getElementById('close_ticket_id').value;
+  const outcome = document.getElementById('outcome_status').value;
+  const summary = document.getElementById('summary').value;
+  const details = document.getElementById('details').value;
+  // الهاتف (من بيانات المستفيد أو من الحفظ السابق)
+  const phone = (window.__casePhone || window.__benPhone || '').trim();
+  const reason = document.getElementById('not_resolved_reason').value;
+  const extra = collectCaseFields();
+  const apptSlot = document.getElementById('appt_slot') ? document.getElementById('appt_slot').value : '';
+  // Front-end required fields
+  const required = [];
+  try{ const a=document.getElementById('closeAlert'); if(a){ a.classList.add('d-none'); a.textContent=''; } }catch(e){}
+  if (!ticketId) required.push('close_ticket_id');
+  if (!summary || !String(summary).trim()) required.push('summary');
+  if (outcome === 'CLOSED_NOT_RESOLVED' && (!reason || !String(reason).trim())) required.push('not_resolved_reason');
+  if (outcome === 'CLOSED_AWAITING' && (!extra.due_date || !String(extra.due_date).trim())) required.push('case_due_date');
+
+  // reset invalid states
+  ['close_ticket_id','summary','not_resolved_reason','case_due_date'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('is-invalid');
+  });
+  required.forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.classList.add('is-invalid');
+  });
+  if (required.length){
+    alert('تأكد من تعبئة الحقول الإلزامية');
+    return;
+  }
+
+  let r;
+  try{
+    r = await postJson('/counter/close', { ticket_id: ticketId, outcome_status: outcome, summary, details, phone, not_resolved_reason: reason, ...extra, appointment_slot_id: apptSlot||null });
+  }catch(err){
+    // Sometimes the server completes the close successfully but the browser fails to read the response.
+    // Verify by re-fetching ticket status; if it's already CLOSED, continue as success.
+    try{ showToast('جاري التحقق من حالة الإغلاق...'); }catch(e){}
+    try{
+      const vr = await fetch('/api/ticket/' + encodeURIComponent(ticketId));
+      const vj = await vr.json();
+      const st = (vj && vj.ok && vj.ticket && vj.ticket.status) ? String(vj.ticket.status) : '';
+      if (st && st.startsWith('CLOSED')){
+        r = { ok:true, verified:true };
+      }else{
+        throw new Error('NOT_CLOSED');
+      }
+    }catch(e){
+      try{
+        const a=document.getElementById('closeAlert');
+        if(a){ a.textContent='تعذر إغلاق التذكرة. تحقق من الاتصال أو أعد المحاولة.'; a.classList.remove('d-none'); }
+        const h=document.getElementById('closeAlertHint');
+        if(h){ h.textContent='نصيحة: افتح أدوات المطور > Network وتحقق من طلب /counter/close لمعرفة سبب الفشل.'; h.classList.remove('d-none'); }
+      }catch(_e){}
+      alert('تعذر الاتصال بالخادم لإغلاق التذكرة.');
+      return;
+    }
+  }
+  if(!r.ok){
+    if (r.__redirect || r.code==='unauth') {
+      alert('انتهت الجلسة. سيتم تحويلك لصفحة الدخول.');
+      try{
+        const next = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = '/counter/login?next=' + next;
+      }catch(e){ window.location.href = '/counter/login'; }
+      return;
+    }
+    // Highlight fields from server if provided
+    (r.fields||[]).forEach(f=>{
+      const map = { summary:'summary', not_resolved_reason:'not_resolved_reason', due_date:'case_due_date' };
+      const id = map[f] || f;
+      const el = document.getElementById(id);
+      if (el) el.classList.add('is-invalid');
+    });
+    alert(r.msg || 'تأكد من البيانات');
+    return;
+  }
+
+  showToast('تم إغلاق الحالة بنجاح ✅');
+  try{ sessionStorage.setItem('bcs_closed_flash','1'); }catch(e){}
+  try{
+    const a=document.getElementById('closeAlert');
+    if(a){ a.textContent='تم إغلاق الحالة بنجاح ✅'; a.classList.remove('d-none'); }
+    const h=document.getElementById('closeAlertHint');
+    if(h) h.classList.remove('d-none');
+    const i=document.getElementById('closeInlineMsg');
+    if(i) i.classList.remove('d-none');
+    const b=document.getElementById('btnCloseAndEval');
+    if(b){ b.disabled=true; b.textContent='تم الإغلاق ✅'; }
+  }catch(e){}
+
+  // Show a strong overlay confirmation
+  try{ showCloseOverlay(); }catch(e){}
+
+  // Reset UI & return to top after closing
+  try{
+    // clear inputs
+    ['close_ticket_id','summary','details','not_resolved_reason'].forEach(id=>{
+      const el = document.getElementById(id);
+      if (el){
+        el.value = '';
+        if (id==='close_ticket_id') el.selectedIndex = 0;
+      }
+    });
+    const out = document.getElementById('outcome_status');
+    if (out) out.value = 'CLOSED_RESOLVED';
+    // clear case/appointment fields (if present)
+    ['case_category','case_priority','case_channel','case_internal_notes','case_transfer_to','case_awaiting_from','case_due_date','appt_slot'].forEach(id=>{
+      const el = document.getElementById(id);
+      if (el) el.value = (id==='case_priority') ? 'normal' : (id==='case_channel' ? 'walkin' : '');
+    });
+    const at = document.getElementById('attachments_list');
+    if (at) at.innerHTML = '<div class="muted small">لا توجد مرفقات.</div>';
+
+    // clear selected beneficiary panel
+    const sb = document.getElementById('selected_beneficiary');
+    if (sb) sb.innerHTML = '<span class="muted">اختر تذكرة ليتم عرض بيانات المستفيد تلقائيًا.</span>';
+    window.__benPhone = '';
+    window.__casePhone = '';
+    window.__ticketLang = 'ar';
+
+    // clear ticket selector
+    const sel = document.getElementById('edit_ticket_id');
+    if (sel) sel.value = '';
+  }catch(e){}
+  try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){}
+  // لا يتم فتح صفحة التقييم تلقائيًا بعد الإغلاق (حسب طلب المشرف).
+  // يمكن الوصول للتقييم من القائمة العلوية عند الحاجة.
+
+  // Force navigation back to /counter so the server-side flash banner shows reliably
+  // (Delay slightly to ensure the operator sees the confirmation and fields are cleared.)
+  setTimeout(()=>{
+    try{ window.location.href = '/counter?closed=1&ts=' + Date.now(); }
+    catch(e){ refreshAfterClose(); }
+  }, 1300);
+}
+function copyCounterDisplayLink(){
+  const el = document.getElementById('counterDisplayUrl');
+  const url = el ? el.textContent : '';
+  if (!url) return;
+  try{ navigator.clipboard.writeText(url); }catch(e){
+    const t = document.createElement('textarea'); t.value=url; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove();
+  }
+}
+(function(){
+  const el = document.getElementById('counterDisplayUrl');
+  if (el){ el.textContent = window.location.origin + '/display/counter/<%= counter.id %>'; }
+})();
+
+
+
+async function loadTicketDetails(){
+  const ticketId = document.getElementById('edit_ticket_id')?.value;
+  if(!ticketId){ renderAttachments([]); setApptUI(null); return; }
+  const r = await fetch('/api/ticket/' + ticketId);
+  const j = await r.json();
+  if(!j.ok){ return; }
+  const t = j.ticket || {};
+  // keep selected ticket language for evaluation page
+  window.__ticketLang = (t.lang || 'ar');
+  const ben = (t.beneficiary || {});
+  const c = j.case || {};
+  window.__benPhone = (ben.phone || '') + '';
+  window.__casePhone = (c.phone || '') + '';
+  document.getElementById('case_priority').value = c.priority || 'normal';
+  document.getElementById('case_channel').value = c.channel || 'walkin';
+  // لا نعبّي التصنيف تلقائيًا من خدمة الكشك حتى لا يتكرر/ينتقل مع بيانات المستفيد
+  document.getElementById('case_category').value = c.category || '';
+  document.getElementById('case_internal_notes').value = c.internal_notes || '';
+  document.getElementById('case_transfer_to').value = c.transfer_to || '';
+  document.getElementById('case_awaiting_from').value = c.awaiting_from || '';
+  document.getElementById('case_due_date').value = (c.due_date || '').slice(0,10);
+  // الهاتف يُعرض فقط في ملخص المستفيد، ولا يوجد حقل مكرر في اللوحة.
+  // Show beneficiary summary if present
+  const bEl = document.getElementById('selected_beneficiary');
+  if (bEl){
+    const type = (ben.beneficiary_type || '-');
+    const typeLabel = (benLabelAr[type] || type);
+    const svc = (t.service_name || '-');
+    bEl.innerHTML = `
+      <div class="row g-2">
+        <div class="col-12 col-md-4"><span class="muted">الاسم:</span> <span class="fw-bold">${(ben.full_name||'-')}</span></div>
+        <div class="col-12 col-md-4"><span class="muted">الهوية:</span> <span class="fw-bold">${(ben.national_id||'-')}</span></div>
+        <div class="col-12 col-md-4"><span class="muted">الجوال:</span> <span class="fw-bold">${(ben.phone||'-')}</span></div>
+        <div class="col-12 col-md-4"><span class="muted">الفئة:</span> <span class="fw-bold">${(typeLabel)}</span></div>
+        <div class="col-12 col-md-4"><span class="muted">طلب سابق:</span> <span class="fw-bold">${(ben.previous_ref||'-')}</span></div>
+        <div class="col-12 col-md-4"><span class="muted">الخدمة:</span> <span class="fw-bold">${svc}</span></div>
+      </div>
+    `;
+  }
+  renderAttachments(j.attachments || []);
+  setApptUI(j.appointment);
+  // تفعيل الحفظ التلقائي بعد تحميل البيانات
+  wireAutoSave();
+}
+
+function collectCaseFields(){
+  return {
+    category: document.getElementById('case_category')?.value || '',
+    priority: document.getElementById('case_priority')?.value || 'normal',
+    channel: document.getElementById('case_channel')?.value || 'walkin',
+    internal_notes: document.getElementById('case_internal_notes')?.value || '',
+    transfer_to: document.getElementById('case_transfer_to')?.value || '',
+    awaiting_from: document.getElementById('case_awaiting_from')?.value || '',
+    due_date: document.getElementById('case_due_date')?.value || ''
+  };
+}
+
+// --- Auto-save case fields (no manual buttons) ---
+let __autoSaveWired = false;
+let __autoSaveTimer = null;
+let __autoSaveLastSig = '';
+function wireAutoSave(){
+  if (__autoSaveWired) return;
+  __autoSaveWired = true;
+  const ids = ['case_category','case_priority','case_channel','case_internal_notes','case_transfer_to','case_awaiting_from','case_due_date'];
+  ids.forEach(id=>{
+    const el = document.getElementById(id);
+    if (!el) return;
+    const evt = (el.tagName==='SELECT' || el.type==='date') ? 'change' : 'input';
+    el.addEventListener(evt, debounceAutoSave);
+    // also save on blur to be safe
+    el.addEventListener('blur', debounceAutoSave);
+  });
+}
+
+function debounceAutoSave(){
+  clearTimeout(__autoSaveTimer);
+  __autoSaveTimer = setTimeout(()=>{ autoSaveCase().catch(()=>{}); }, 450);
+}
+
+async function autoSaveCase(){
+  const ticketId = document.getElementById('edit_ticket_id')?.value;
+  if(!ticketId) return;
+  const fields = collectCaseFields();
+  const sig = JSON.stringify({ticketId, ...fields});
+  if (sig === __autoSaveLastSig) return;
+  const payload = { ticket_id: ticketId, ...fields };
+  const r = await postJson('/counter/case/save', payload);
+  if (r && r.ok){
+    __autoSaveLastSig = sig;
+    showToast('تم الحفظ');
+  }
+}
+
+function renderAttachments(list){
+  const box = document.getElementById('attachments_list');
+  if(!box) return;
+  if(!list || !list.length){ box.innerHTML = '<div class="muted small">لا توجد مرفقات.</div>'; return; }
+  box.innerHTML = list.map(a=>{
+    const name = escapeHtml(a.original_name || ('ملف #' + a.id));
+    const dt = a.uploaded_at ? new Date(a.uploaded_at).toLocaleString() : '';
+    return `<div class="d-flex justify-content-between align-items-center border rounded px-2 py-1 mt-1 bg-white">
+      <div class="small"><a href="/files/${a.id}" target="_blank" class="text-decoration-none">${name}</a><div class="muted small">${dt}</div></div>
+      <span class="badge text-bg-light">#${a.id}</span>
+    </div>`;
+  }).join('');
+}
+
+async function uploadAttachment(){
+  const ticketId = document.getElementById('edit_ticket_id')?.value;
+  const f = document.getElementById('attach_file')?.files?.[0];
+  if(!ticketId){ alert('اختر تذكرة'); return; }
+  if(!f){ alert('اختر ملف'); return; }
+  const fd = new FormData();
+  fd.append('ticket_id', ticketId);
+  fd.append('file', f);
+  const r = await fetch('/counter/attachment/upload', { method:'POST', body: fd });
+  const j = await r.json();
+  if(!j.ok){ alert(j.msg || 'فشل رفع المرفق'); return; }
+  document.getElementById('attach_file').value = '';
+  await loadTicketDetails();
+}
+
+function setApptUI(appt){
+  const dateEl = document.getElementById('appt_date');
+  const sel = document.getElementById('appt_slot');
+  const hint = document.getElementById('appt_hint');
+  if(!dateEl || !sel || !hint) return;
+  if(!appt || !appt.slots){
+    dateEl.value = '';
+    sel.innerHTML = '';
+    hint.textContent = 'لا توجد مواعيد متاحة أو أن الخدمة ليست حجز موعد.';
+    return;
+  }
+  dateEl.value = appt.date || '';
+  sel.innerHTML = (appt.slots || []).map(s=>`<option value="${s.id}">${s.start_time} - ${s.end_time}</option>`).join('');
+  if (appt.adjusted && appt.requested_date && appt.requested_date !== appt.date){
+    hint.textContent = appt.slots.length ? `اليوم المختار غير متاح للمواعيد — تم نقلك تلقائيًا إلى ${appt.date}. اختر الوقت ثم اضغط حجز الموعد.` : `اليوم المختار غير متاح للمواعيد — تم نقلك تلقائيًا إلى ${appt.date}. لا توجد خانات متاحة.`;
+  } else {
+    hint.textContent = appt.slots.length ? 'اختر الوقت ثم اضغط حجز الموعد.' : 'لا توجد خانات متاحة في هذا اليوم.';
+  }
+}
+
+// fetch slots when changing date
+(function(){
+  const dateEl = document.getElementById('appt_date');
+  if (!dateEl) return;
+  dateEl.addEventListener('change', async ()=>{
+    const d = dateEl.value;
+    if (!d) return;
+    try{
+      const r = await fetch('/api/appointments/slots?date=' + encodeURIComponent(d));
+      const j = await r.json();
+      if (j && j.ok) setApptUI(j.appointment);
+    }catch(e){}
+  });
+})();
+
+async function bookAppointment(){
+  const ticketId = document.getElementById('edit_ticket_id')?.value;
+  const slotId = document.getElementById('appt_slot')?.value;
+  if(!ticketId){ alert('اختر تذكرة'); return; }
+  if(!slotId){ alert('لا يوجد وقت متاح'); return; }
+  const phone = (window.__casePhone || window.__benPhone || '');
+  const r = await postJson('/counter/appointments/book', { ticket_id: ticketId, slot_id: slotId, phone });
+  if(!r.ok){ alert(r.msg || 'فشل الحجز'); return; }
+  alert('تم حجز الموعد');
+  await loadTicketDetails();
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+document.getElementById('edit_ticket_id')?.addEventListener('change', loadTicketDetails);
+setTimeout(loadTicketDetails, 200);
+
+
+setInterval(()=>postJson('/counter/heartbeat', {}), 25000);
+
+async function saveAppointmentsDay(){
+  const weekday = document.getElementById('appointments_weekday').value;
+  const r = await postJson('/counter/appointments/weekday', {weekday});
+  if(r.ok) location.reload();
+  else alert('فشل تحديث اليوم');
+}
+</script>
+</body>
+</html>

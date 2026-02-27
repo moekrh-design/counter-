@@ -1,0 +1,292 @@
+// Shared helpers used across Admin/Counter/Kiosk screens
+async function postJson(u,d){
+  const payload = {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify(d || {})
+  };
+
+  async function safeJson(resp){
+    // If server signals unauth for AJAX, return a structured flag for callers.
+    if (resp.status === 401 || resp.status === 403){
+      return { ok:false, code:'unauth', msg:'انتهت الجلسة أو لا يوجد دخول', __redirect:true };
+    }
+
+    const ct = (resp.headers && resp.headers.get) ? (resp.headers.get('content-type') || '') : '';
+
+    // Some middlewares may still redirect to login HTML; detect by final URL.
+    if ((resp.url && /\/counter\/login/i.test(resp.url)) || (resp.url && /\/admin\/login/i.test(resp.url))){
+      return { ok:false, code:'unauth', msg:'انتهت الجلسة أو لا يوجد دخول', __redirect:true };
+    }
+
+    if (ct.includes('application/json')){
+      try{ return await resp.json(); }
+      catch(e){ return { ok:false, msg:'تعذر قراءة رد الخادم (JSON غير صالح).' }; }
+    }
+
+    // Non-JSON response (likely HTML error page)
+    try{
+      const txt = await resp.text();
+      if (/\/counter\/login|\/admin\/login|password|username|دخول/i.test(txt)){
+        return { ok:false, code:'unauth', msg:'انتهت الجلسة أو لا يوجد دخول', __redirect:true };
+      }
+    }catch(e){}
+    return { ok:false, msg:'تعذر قراءة رد الخادم.' };
+  }
+
+  async function doFetch(url){
+    const r = await fetch(url, payload);
+    return await safeJson(r);
+  }
+
+  try{
+    return await doFetch(u);
+  }catch(e){
+    // Fallback for deployments where absolute paths break (e.g., IIS virtual directory)
+    try{
+      const u2 = (typeof u === 'string' && u.startsWith('/')) ? u.slice(1) : u;
+      return await doFetch(u2);
+    }catch(_e){
+      throw e;
+    }
+  }
+}
+
+function uiHelpOpen(ev){
+  try{ if (ev){ ev.preventDefault(); ev.stopPropagation(); } }catch(e){}
+  const el = document.getElementById('uiHelpModal');
+  if (!el) return;
+  try{ el.classList.remove('d-none'); }catch(e){}
+  try{ el.classList.remove('ui-help-hidden'); }catch(e){}
+  try{ el.hidden = false; }catch(e){}
+  el.style.display = 'block';
+  el.setAttribute('aria-hidden','false');
+  try{ document.body.classList.add('ui-modal-open'); }catch(e){}
+}
+
+function uiHelpClose(ev){
+  try{ if (ev){ ev.preventDefault(); ev.stopPropagation(); } }catch(e){}
+  const el = document.getElementById('uiHelpModal');
+  if (!el) return;
+  // Double-lock close: aria-hidden + display none + d-none (in case CSS overrides)
+  el.style.display = 'none';
+  try{ el.classList.add('ui-help-hidden'); }catch(e){}
+  try{ el.hidden = true; }catch(e){}
+  try{ el.classList.add('d-none'); }catch(e){}
+  el.setAttribute('aria-hidden','true');
+  try{ document.body.classList.remove('ui-modal-open'); }catch(e){}
+}
+
+// Print / Download helpers (used inside the Help modal)
+function uiHelpPrint(){
+  try{
+    const role = document.body.getAttribute('data-user-role') || '';
+    window.open('/help/instructions?role=' + encodeURIComponent(role) + '&mode=print', '_blank');
+  }catch(e){
+    try{ window.print(); }catch(_e){}
+  }
+}
+
+function uiHelpDownloadPdf(){
+  // Practical approach: open a printable page; user can Save as PDF from the print dialog.
+  try{
+    const role = document.body.getAttribute('data-user-role') || '';
+    window.open('/help/instructions?role=' + encodeURIComponent(role) + '&mode=pdf', '_blank');
+  }catch(e){
+    try{ window.print(); }catch(_e){}
+  }
+}
+
+// Close help modal with ESC
+try{
+  window.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape') uiHelpClose();
+  });
+}catch(e){}
+
+// Hardening: make sure close/open works even if inline onclick is blocked
+try{
+  window.addEventListener('DOMContentLoaded', ()=>{
+    const modal = document.getElementById('uiHelpModal');
+    if (!modal) return;
+
+    // Close when clicking the dark backdrop
+    modal.addEventListener('click', (e)=>{
+      if (e.target === modal) uiHelpClose(e);
+    });
+
+    // Any element marked with data-ui-help-close closes the modal
+    document.querySelectorAll('[data-ui-help-close]').forEach(btn=>{
+      btn.addEventListener('click', (e)=> uiHelpClose(e));
+    });
+
+    // Any element marked with data-ui-help-open opens the modal
+    document.querySelectorAll('[data-ui-help-open]').forEach(btn=>{
+      btn.addEventListener('click', (e)=> uiHelpOpen(e));
+    });
+  });
+}catch(e){}
+
+// ------------------------------
+// Counter: "Close Ticket" hard binding
+// يضمن أن زر (إغلاق التذكرة فقط) يعمل دائمًا ويُظهر رسالة نجاح واضحة.
+async function __counterCloseTicketFallback(){
+  const btn = document.getElementById('btnCloseAndEval');
+  if (!btn) return;
+
+  // Prefer the page's rich closeTicket() implementation if available.
+  if (typeof window.closeTicket === 'function'){
+    try{ await window.closeTicket(); }catch(e){ /* fall through */ }
+    return;
+  }
+
+  // Minimal fallback: close with the required fields only.
+  const ticketId = document.getElementById('close_ticket_id')?.value || '';
+  const outcome = document.getElementById('outcome_status')?.value || 'CLOSED_RESOLVED';
+  const summary = (document.getElementById('summary')?.value || '').trim();
+  const details = (document.getElementById('details')?.value || '').trim();
+  const reason = (document.getElementById('not_resolved_reason')?.value || '').trim();
+
+  if (!ticketId || !summary){
+    alert('تأكد من اختيار التذكرة وكتابة ملخص الطلب');
+    return;
+  }
+  if (outcome === 'CLOSED_NOT_RESOLVED' && !reason){
+    alert('اكتب سبب عدم الإنجاز');
+    return;
+  }
+
+  const prev = btn.textContent;
+  try{ btn.disabled = true; btn.textContent = 'جارٍ الإغلاق…'; }catch(e){}
+  try{
+    const r = await postJson('/counter/close', {
+      ticket_id: ticketId,
+      outcome_status: outcome,
+      summary,
+      details,
+      not_resolved_reason: reason
+    });
+    if (!r || !r.ok){
+      alert((r && r.msg) ? r.msg : 'تعذر إغلاق التذكرة');
+      return;
+    }
+    alert('تم إغلاق التذكرة بنجاح ✅');
+    try{ window.location.href = '/counter?closed=1&ts=' + Date.now(); }catch(e){ window.location.reload(); }
+  }catch(e){
+    alert('تعذر الاتصال بالخادم لإغلاق التذكرة');
+  }finally{
+    try{ btn.disabled = false; btn.textContent = prev || 'إغلاق التذكرة فقط'; }catch(e){}
+  }
+}
+
+try{
+  window.addEventListener('DOMContentLoaded', ()=>{
+    const btn = document.getElementById('btnCloseAndEval');
+    if (!btn) return;
+    if (btn.dataset.hardBound === '1') return;
+    btn.dataset.hardBound = '1';
+    try{ btn.setAttribute('type','button'); }catch(e){}
+    btn.addEventListener('click', (e)=>{
+      try{ e.preventDefault(); e.stopPropagation(); }catch(_e){}
+      __counterCloseTicketFallback();
+    }, true);
+  });
+}catch(e){}
+
+// ------------------------------
+// Counter: "Call Next" hard binding
+// بعض البيئات قد تمنع تنفيذ سكربت الصفحة أو onclick؛ لذلك نربط الزر من ملف عام
+// بحيث لا يبقى الزر صامتًا حتى لو تعطلت سكربتات counter.ejs.
+async function __counterCallNextHard(){
+  const btn = document.getElementById('btnCallNext');
+  if (!btn) return;
+  const prev = btn.textContent;
+  try{
+    btn.disabled = true;
+    btn.textContent = 'جارٍ الاستدعاء…';
+  }catch(e){}
+  try{
+    const r = await postJson('/counter/next', {});
+    if (!r){
+      alert('تعذر استدعاء التالي.');
+      return;
+    }
+    if (!r.ok){
+      alert(r.msg || 'لا توجد تذاكر متاحة الآن.');
+      return;
+    }
+    // نجاح
+    try{ window.location.reload(); }catch(e){ location.href = location.href; }
+  }catch(e){
+    alert('تعذر استدعاء التالي (تحقق من الاتصال أو المسار).');
+  }finally{
+    try{
+      btn.disabled = false;
+      btn.textContent = prev || 'استدعاء التالي';
+    }catch(e){}
+  }
+}
+
+try{
+  window.addEventListener('DOMContentLoaded', ()=>{
+    const btn = document.getElementById('btnCallNext');
+    if (!btn) return;
+    if (btn.dataset.hardBound === '1') return;
+    btn.dataset.hardBound = '1';
+    // ضمان أن الزر ليس submit داخل form
+    try{ btn.setAttribute('type','button'); }catch(e){}
+    btn.addEventListener('click', (e)=>{
+      try{ e.preventDefault(); e.stopPropagation(); }catch(_e){}
+      __counterCallNextHard();
+    }, true);
+  });
+}catch(e){}
+
+// ------------------------------
+// Counter: "Start Service" hard binding
+// يضمن عمل زر (بدء الخدمة للمنادى) حتى لو تعطلت سكربتات الصفحة أو inline onclick.
+async function __counterStartServiceHard(){
+  const btn = document.getElementById('btnStartService');
+  if (!btn) return;
+  const ticketId = btn.getAttribute('data-ticket-id') || btn.dataset.ticketId || '';
+  if (!ticketId){
+    alert('لا توجد تذكرة مناداة لبدء الخدمة.');
+    return;
+  }
+  const prev = btn.textContent;
+  try{
+    btn.disabled = true;
+    btn.textContent = 'جارٍ بدء الخدمة…';
+  }catch(e){}
+  try{
+    const r = await postJson('/counter/start', { ticket_id: ticketId });
+    if (!r){
+      alert('تعذر بدء الخدمة.');
+      return;
+    }
+    if (!r.ok){
+      alert(r.msg || 'تعذر بدء الخدمة (تحقق من حالة التذكرة).');
+      return;
+    }
+    try{ window.location.reload(); }catch(e){ location.href = location.href; }
+  }catch(e){
+    alert('تعذر بدء الخدمة (تحقق من الاتصال أو المسار).');
+  }finally{
+    try{ btn.disabled = false; btn.textContent = prev || 'بدء الخدمة للمنادى'; }catch(e){}
+  }
+}
+
+try{
+  window.addEventListener('DOMContentLoaded', ()=>{
+    const btn = document.getElementById('btnStartService');
+    if (!btn) return;
+    if (btn.dataset.hardBound === '1') return;
+    btn.dataset.hardBound = '1';
+    try{ btn.setAttribute('type','button'); }catch(e){}
+    btn.addEventListener('click', (e)=>{
+      try{ e.preventDefault(); e.stopPropagation(); }catch(_e){}
+      __counterStartServiceHard();
+    }, true);
+  });
+}catch(e){}

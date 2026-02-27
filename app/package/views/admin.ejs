@@ -1,0 +1,1340 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<link href="/public/app.css" rel="stylesheet">
+<link href="/public/moe-ui.css" rel="stylesheet">
+<script src="/public/app.js"></script>
+
+</head>
+<body data-user-role="admin">
+<style>
+  /* Admin Settings layout polish */
+  .admin-sticky-nav{ backdrop-filter: blur(8px); background: rgba(255,255,255,.85); border: 1px solid rgba(0,0,0,.06); }
+  @media (prefers-color-scheme: dark){
+    .admin-sticky-nav{ background: rgba(15,23,42,.75); border-color: rgba(255,255,255,.08); }
+  }
+  .admin-section-title{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .admin-section-title .muted{ opacity:.8; }
+  .admin-card{ border-radius: 18px; }
+  .admin-card .card{ border-radius: 18px; }
+  .admin-subcard{ border-radius: 14px; }
+  .admin-hr{ opacity:.15; }
+</style>
+
+<div class="container-fluid py-4 px-3 px-lg-4">
+  <%- include('partials_nav') %>
+
+  <!-- Quick navigation (sticky) -->
+  <div class="sticky-top pt-2" style="z-index: 1020;">
+    <div class="admin-sticky-nav rounded-4 p-2">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div class="fw-bold">لوحة الإدارة</div>
+        <div class="text-muted small">تنقّل سريع بين الأقسام</div>
+      </div>
+      <div class="d-flex flex-wrap gap-2 mt-2">
+        <!-- معرفات فريدة لتفادي أي تعارض مع عناصر أخرى قد تحمل نفس الـid داخل الصفحة -->
+        <a class="btn btn-sm btn-outline-secondary quick-nav-link" href="#sec-ops">إعدادات التشغيل</a>
+        <a class="btn btn-sm btn-outline-secondary quick-nav-link" href="#sec-counters">الكونترات</a>
+        <a class="btn btn-sm btn-outline-secondary quick-nav-link" href="#sec-services">الخدمات</a>
+        <a class="btn btn-sm btn-outline-secondary quick-nav-link" href="#sec-routing">توجيه الخدمات</a>
+        <a class="btn btn-sm btn-outline-secondary quick-nav-link" href="#sec-users">المستخدمون</a>
+        <a class="btn btn-sm btn-outline-secondary quick-nav-link" href="#sec-backup">النسخ الاحتياطي</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Fix: بعض المتصفحات/التمديدات قد تربك القفز للـhash داخل صفحات طويلة.
+    // نعالج ذلك بسكرول مضبوط مع تعويض ارتفاع الشريط العلوي.
+    (function(){
+      function scrollToId(id){
+        var el = document.getElementById(id);
+        if(!el) return;
+        var sticky = document.querySelector('.sticky-top');
+        var offset = (sticky ? sticky.getBoundingClientRect().height : 0) + 12;
+        var y = el.getBoundingClientRect().top + window.pageYOffset - offset;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+        try{ history.replaceState(null, '', '#' + id); }catch(e){ location.hash = id; }
+      }
+
+      document.addEventListener('click', function(e){
+        var a = e.target.closest && e.target.closest('a.quick-nav-link');
+        if(!a) return;
+        var href = a.getAttribute('href') || '';
+        if(!href.startsWith('#')) return;
+        e.preventDefault();
+        scrollToId(href.slice(1));
+      });
+
+      window.addEventListener('load', function(){
+        if(location.hash && location.hash.startsWith('#sec-')){
+          var id = location.hash.slice(1);
+          setTimeout(function(){ scrollToId(id); }, 50);
+        }
+      });
+    })();
+  </script>
+
+  <div class="row g-3 mt-1 admin-card">
+    <!-- تشغيل النظام بعرض كامل لسهولة الإدارة -->
+    <div class="col-12" id="sec-ops">
+      <div class="card p-4">
+        <div class="admin-section-title">
+          <h4 class="fw-bold mb-0">إعدادات التشغيل</h4>
+          <div class="muted">إدارة إعدادات النظام والكشك والصوت والتقييم</div>
+        </div>
+
+        <% if (typeof query !== 'undefined' && query && query.saved === 'ops') { %>
+          <div class="alert alert-success mt-3 mb-0">تم حفظ إعدادات التشغيل بنجاح.</div>
+        <% } %>
+        <form method="post" action="/admin/settings/update" class="row g-2 mt-1">
+          <!-- Accordion for clearer settings grouping -->
+          <div class="col-12">
+            <div class="accordion" id="opsAccordion">
+              <!-- General -->
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="opsHeadGeneral">
+                  <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#opsGeneral" aria-expanded="true" aria-controls="opsGeneral">
+                    عام
+                  </button>
+                </h2>
+                <div id="opsGeneral" class="accordion-collapse collapse show" aria-labelledby="opsHeadGeneral" data-bs-parent="#opsAccordion">
+                  <div class="accordion-body">
+                    <div class="row g-2">
+                      <div class="col-12 col-md-6">
+            <label class="form-label">مدة الراحة الافتراضية (ث)</label>
+            <input class="form-control" name="rest_seconds_default" value="<%= settings.rest_seconds_default %>">
+                      </div>
+                      <div class="col-12 col-md-6">
+            <label class="form-label">النداء التلقائي</label>
+            <select class="form-select" name="auto_call_enabled">
+              <option value="true" <%= settings.auto_call_enabled ? 'selected':'' %>>تشغيل</option>
+              <option value="false" <%= !settings.auto_call_enabled ? 'selected':'' %>>إيقاف</option>
+            </select>
+                      </div>
+
+                      <div class="col-12 col-md-6">
+            <label class="form-label">ثيم الواجهات</label>
+            <select class="form-select" name="ui_theme">
+              <option value="dark" <%= (settings.ui && settings.ui.theme)==='dark' ? 'selected':'' %>>داكن (افتراضي)</option>
+              <option value="navy" <%= (settings.ui && settings.ui.theme)==='navy' ? 'selected':'' %>>كحلي مؤسسي</option>
+              <option value="teal" <%= (settings.ui && settings.ui.theme)==='teal' ? 'selected':'' %>>تركواز مؤسسي</option>
+              <option value="slate" <%= (settings.ui && settings.ui.theme)==='slate' ? 'selected':'' %>>رمادي داكن</option>
+              <option value="sand" <%= (settings.ui && settings.ui.theme)==='sand' ? 'selected':'' %>>رملي فاتح</option>
+              <option value="light" <%= (settings.ui && settings.ui.theme)==='light' ? 'selected':'' %>>فاتح (أبيض نظيف)</option>
+              <option value="mist" <%= (settings.ui && settings.ui.theme)==='mist' ? 'selected':'' %>>ضبابي (رمادي لطيف)</option>
+              <option value="pearl" <%= (settings.ui && settings.ui.theme)==='pearl' ? 'selected':'' %>>لؤلؤي (فاتح رسمي)</option>
+              <option value="ivory" <%= (settings.ui && settings.ui.theme)==='ivory' ? 'selected':'' %>>عاجي (دافئ)</option>
+              <option value="mint" <%= (settings.ui && settings.ui.theme)==='mint' ? 'selected':'' %>>نعناعي (Mint)</option>
+              <option value="sky" <%= (settings.ui && settings.ui.theme)==='sky' ? 'selected':'' %>>سماوي (Sky)</option>
+              <option value="lavender" <%= (settings.ui && settings.ui.theme)==='lavender' ? 'selected':'' %>>لافندر (Lavender)</option>
+              <option value="rose" <%= (settings.ui && settings.ui.theme)==='rose' ? 'selected':'' %>>وردي ناعم (Rose)</option>
+              <option value="stone" <%= (settings.ui && settings.ui.theme)==='stone' ? 'selected':'' %>>حجري (Stone)</option>
+            </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Kiosk -->
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="opsHeadKiosk">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#opsKiosk" aria-expanded="false" aria-controls="opsKiosk">
+                    الكشك
+                  </button>
+                </h2>
+                <div id="opsKiosk" class="accordion-collapse collapse" aria-labelledby="opsHeadKiosk" data-bs-parent="#opsAccordion">
+                  <div class="accordion-body">
+                    <div class="row g-2">
+
+                      <div class="col-12 col-md-6">
+            <label class="form-label">رجوع الكشك تلقائيًا بعد الطباعة (ث)</label>
+            <input class="form-control" name="kiosk_return_seconds" value="<%= (settings.ui && settings.ui.kiosk_return_seconds)!=null ? settings.ui.kiosk_return_seconds : 10 %>">
+                      </div>
+
+                      <div class="col-12 col-md-6">
+            <label class="form-label">طباعة تلقائية في الكشك</label>
+            <select class="form-select" name="kiosk_auto_print">
+              <option value="true" <%= (settings.ui && settings.ui.kiosk_auto_print) ? 'selected':'' %>>تشغيل</option>
+              <option value="false" <%= !(settings.ui && settings.ui.kiosk_auto_print) ? 'selected':'' %>>إيقاف</option>
+            </select>
+                      </div>
+
+                      <div class="col-12">
+            <label class="form-label">وضع الطباعة (مهم)</label>
+            <select class="form-select" name="kiosk_printing_mode">
+              <option value="browser" <%= (settings.ui && settings.ui.kiosk_printing_mode)==='browser' ? 'selected':'' %>>متصفح عادي (قد يظهر نافذة الطباعة)</option>
+              <option value="chrome_kiosk" <%= (settings.ui && settings.ui.kiosk_printing_mode)==='chrome_kiosk' ? 'selected':'' %>>Kiosk (طباعة صامتة عبر Chrome Flags)</option>
+            </select>
+            <div class="muted small mt-1">للطباعة الصامتة: شغّل Chrome بـ --kiosk --kiosk-printing وحدد طابعة افتراضية في ويندوز.</div>
+                      </div>
+
+          
+                      <div class="col-12">
+            <label class="form-label">لغات شاشة الكشك (اختيار اللغات الظاهرة في البداية)</label>
+            <div class="d-flex flex-wrap gap-2">
+              <% const langs = (settings.ui && settings.ui.kiosk_languages) ? settings.ui.kiosk_languages : ['ar','en','zh']; %>
+              <label class="ui-chip">
+                <input type="checkbox" name="kiosk_languages" value="ar" <%= langs.includes('ar') ? 'checked' : '' %> >
+                <span>العربية</span>
+              </label>
+              <label class="ui-chip">
+                <input type="checkbox" name="kiosk_languages" value="en" <%= langs.includes('en') ? 'checked' : '' %> >
+                <span>English</span>
+              </label>
+              <label class="ui-chip">
+                <input type="checkbox" name="kiosk_languages" value="zh" <%= langs.includes('zh') ? 'checked' : '' %> >
+                <span>中文</span>
+              </label>
+              <label class="ui-chip">
+                <input type="checkbox" name="kiosk_languages" value="fr" <%= langs.includes('fr') ? 'checked' : '' %> >
+                <span>Français</span>
+              </label>
+              <div class="text-muted small w-100 mt-1">ملاحظة: إذا لم يتم تحديد أي لغة سيعتمد النظام الافتراضي (العربية/الإنجليزية).</div>
+            </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sound -->
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="opsHeadSound">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#opsSound" aria-expanded="false" aria-controls="opsSound">
+                    الصوت والنداء
+                  </button>
+                </h2>
+                <div id="opsSound" class="accordion-collapse collapse" aria-labelledby="opsHeadSound" data-bs-parent="#opsAccordion">
+                  <div class="accordion-body">
+
+
+                    <div class="row g-2">
+              <div class="col-12 col-md-4">
+                <label class="form-label">تفعيل الصوت</label>
+                <select class="form-select" name="sound_enabled">
+                  <option value="true" <%= (settings.ui && settings.ui.sound && settings.ui.sound.enabled) ? 'selected':'' %>>تشغيل</option>
+                  <option value="false" <%= (settings.ui && settings.ui.sound && !settings.ui.sound.enabled) ? 'selected':'' %>>إيقاف</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">جرس قبل النداء</label>
+                <select class="form-select" name="sound_chime">
+                  <option value="true" <%= (settings.ui && settings.ui.sound && settings.ui.sound.chime) ? 'selected':'' %>>تشغيل</option>
+                  <option value="false" <%= (settings.ui && settings.ui.sound && !settings.ui.sound.chime) ? 'selected':'' %>>إيقاف</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">نوع جرس التنبيه</label>
+                <select class="form-select" name="sound_chime_style">
+                  <option value="alarm" <%= (settings.ui && settings.ui.sound && (settings.ui.sound.chime_style||'alarm')==='alarm') ? 'selected':'' %>>منبه (رن رن)</option>
+                  <option value="airport" <%= (settings.ui && settings.ui.sound && (settings.ui.sound.chime_style||'alarm')==='airport') ? 'selected':'' %>>نغمة مطار</option>
+                  <option value="bell" <%= (settings.ui && settings.ui.sound && (settings.ui.sound.chime_style||'alarm')==='bell') ? 'selected':'' %>>جرس تقليدي</option>
+                </select>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <label class="form-label">لغة النداء</label>
+                <div class="d-flex gap-2">
+                  <select class="form-select" name="sound_speak_ar">
+                    <option value="true" <%= (settings.ui && settings.ui.sound && settings.ui.sound.speak_ar) ? 'selected':'' %>>عربي</option>
+                    <option value="false" <%= (settings.ui && settings.ui.sound && !settings.ui.sound.speak_ar) ? 'selected':'' %>>بدون عربي</option>
+                  </select>
+                  <select class="form-select" name="sound_speak_en">
+                    <option value="true" <%= (settings.ui && settings.ui.sound && settings.ui.sound.speak_en) ? 'selected':'' %>>English</option>
+                    <option value="false" <%= (settings.ui && settings.ui.sound && !settings.ui.sound.speak_en) ? 'selected':'' %>>No English</option>
+                  </select>
+                </div>
+
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">مصدر الصوت</label>
+                <select class="form-select" name="sound_mode">
+                  <option value="tts" <%= (settings.ui && settings.ui.sound && (settings.ui.sound.mode||'tts')==='tts') ? 'selected':'' %>>صوت النظام (نطق المتصفح)</option>
+                  <option value="recordings" <%= (settings.ui && settings.ui.sound && (settings.ui.sound.mode||'tts')==='recordings') ? 'selected':'' %>>تسجيل خارجي (Voice Pack)</option>
+                </select>
+                <div class="muted small mt-1">في وضع التسجيل الخارجي يتم تشغيل ملفات صوت من داخل <code>public/voicepack</code>، وإذا لم تتوفر الملفات يتم الرجوع تلقائيًا لصوت النظام.</div>
+              </div>
+              
+              <div class="col-12 col-md-4">
+                <label class="form-label">مستوى صوت الجرس</label>
+                <input class="form-range" type="range" name="sound_chime_volume" min="0" max="1" step="0.05" value="<%= (settings.ui && settings.ui.sound && (settings.ui.sound.chime_volume!==undefined)) ? settings.ui.sound.chime_volume : 0.85 %>">
+                <div class="muted small mt-1">0 = صامت، 1 = أعلى مستوى.</div>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label">نوع الصوت (عربي)</label>
+                <select class="form-select" name="sound_voice_gender_ar">
+                  <option value="auto" <%= (settings.ui && settings.ui.sound && (settings.ui.sound.voice_gender_ar||'auto')==='auto') ? 'selected':'' %>>تلقائي</option>
+                  <option value="male" <%= (settings.ui && settings.ui.sound && settings.ui.sound.voice_gender_ar==='male') ? 'selected':'' %>>ذكر</option>
+                  <option value="female" <%= (settings.ui && settings.ui.sound && settings.ui.sound.voice_gender_ar==='female') ? 'selected':'' %>>أنثى</option>
+                </select>
+                <div class="muted small mt-1">يتم اختيار أقرب صوت متاح في النظام حسب اللغة.</div>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label">Voice type (English)</label>
+                <select class="form-select" name="sound_voice_gender_en">
+                  <option value="auto" <%= (settings.ui && settings.ui.sound && (settings.ui.sound.voice_gender_en||'auto')==='auto') ? 'selected':'' %>>Auto</option>
+                  <option value="male" <%= (settings.ui && settings.ui.sound && settings.ui.sound.voice_gender_en==='male') ? 'selected':'' %>>Male</option>
+                  <option value="female" <%= (settings.ui && settings.ui.sound && settings.ui.sound.voice_gender_en==='female') ? 'selected':'' %>>Female</option>
+                </select>
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">نص النداء (عربي) — استخدم {ticket} و {counter}</label>
+                <input class="form-control" name="sound_phrase_ar" value="<%= (settings.ui && settings.ui.sound && settings.ui.sound.phrase_ar) ? settings.ui.sound.phrase_ar : '' %>">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Call text (English) — use {ticket} and {counter}</label>
+                <input class="form-control" name="sound_phrase_en" value="<%= (settings.ui && settings.ui.sound && settings.ui.sound.phrase_en) ? settings.ui.sound.phrase_en : '' %>">
+              </div>
+
+              <!-- Sound Test (uses current form values, even before saving) -->
+              <div class="col-12">
+                <div class="p-3 rounded border bg-body-tertiary">
+                  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="fw-bold">اختبار الصوت</div>
+                    <div id="soundTestStatus" class="small muted"></div>
+                  </div>
+                  <div class="row g-2 mt-1 align-items-end">
+                    <div class="col-6 col-md-3">
+                      <label class="form-label">رقم التذكرة</label>
+                      <input class="form-control" id="soundTestTicket" value="105" inputmode="numeric" />
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label">رقم الكونتر</label>
+                      <input class="form-control" id="soundTestCounter" value="2" inputmode="numeric" />
+                    </div>
+                    <div class="col-12 col-md-6 d-flex gap-2">
+                      <button type="button" class="btn btn-outline-secondary" id="soundUnlockBtn">تفعيل الصوت</button>
+                      <button type="button" class="btn btn-primary flex-grow-1" id="soundTestBtn">تشغيل اختبار الصوت</button>
+                    </div>
+                  </div>
+                  <div class="muted small mt-2">يستخدم الإعدادات الحالية في النموذج حتى قبل الحفظ. إذا كان وضع الصوت "تسجيل خارجي" ولا توجد ملفات كافية، سيعود تلقائيًا إلى "صوت النظام" للاختبار.</div>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <div class="muted small">ملاحظة: يعتمد نطق الصوت على دعم المتصفح Web Speech. يفضّل Chrome على ويندوز.</div>
+              </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Appointments -->
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="opsHeadAppointments">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#opsAppointments" aria-expanded="false" aria-controls="opsAppointments">
+                    المواعيد
+                  </button>
+                </h2>
+                <div id="opsAppointments" class="accordion-collapse collapse" aria-labelledby="opsHeadAppointments" data-bs-parent="#opsAccordion">
+                  <div class="accordion-body">
+                    <div class="row g-2">
+
+                      <div class="col-12 col-md-6">
+            <label class="form-label">يوم لقاء المسؤول</label>
+            <select class="form-select" name="appointments_weekday">
+              <% for(let i=0;i<=6;i++){ %>
+                <option value="<%= i %>" <%= settings.appointments.weekday===i ? 'selected':'' %>><%= i %></option>
+              <% } %>
+            </select>
+            <div class="muted small">0=الأحد .. 4=الخميس</div>
+                      </div>
+
+                      <div class="col-12 col-md-6">
+            <label class="form-label">مدة الموعد (دقيقة)</label>
+            <input class="form-control" name="appointments_slot_minutes" value="<%= settings.appointments.slot_minutes %>">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Work hours -->
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="opsHeadWorkHours">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#opsWorkHours" aria-expanded="false" aria-controls="opsWorkHours">
+                    الدوام
+                  </button>
+                </h2>
+                <div id="opsWorkHours" class="accordion-collapse collapse" aria-labelledby="opsHeadWorkHours" data-bs-parent="#opsAccordion">
+                  <div class="accordion-body">
+                    <div class="row g-2">
+
+                      <div class="col-12">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+              <div>
+                <div class="fw-bold">أوقات الدوام (الكشك)</div>
+                <div class="muted small">عند التفعيل: لا يتم استقبال الطلبات خارج الوقت المحدد، وتظهر شاشة "خارج وقت العمل".</div>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="whEnabled" name="work_hours_enabled" value="true" <%= (settings.work_hours && settings.work_hours.enabled) ? 'checked' : '' %> >
+                <label class="form-check-label" for="whEnabled">تفعيل</label>
+              </div>
+            </div>
+                      </div>
+                      <div class="col-6 col-md-3">
+            <label class="form-label">بداية الدوام</label>
+            <input class="form-control" name="work_start_time" value="<%= (settings.work_hours && settings.work_hours.start_time) ? settings.work_hours.start_time : '07:30' %>" placeholder="07:30">
+                      </div>
+                      <div class="col-6 col-md-3">
+            <label class="form-label">نهاية الدوام</label>
+            <input class="form-control" name="work_end_time" value="<%= (settings.work_hours && settings.work_hours.end_time) ? settings.work_hours.end_time : '14:30' %>" placeholder="14:30">
+                      </div>
+                      <div class="col-12 col-md-6">
+            <label class="form-label">أيام الدوام</label>
+            <% const whDays = (settings.work_hours && Array.isArray(settings.work_hours.days) && settings.work_hours.days.length) ? settings.work_hours.days.map(Number) : [0,1,2,3,4]; %>
+            <div class="d-flex flex-wrap gap-2">
+              <% const dayNames = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت']; %>
+              <% for(let i=0;i<=6;i++){ %>
+                <label class="form-check form-check-inline" style="margin:0">
+                  <input class="form-check-input" type="checkbox" name="work_days" value="<%= i %>" <%= whDays.includes(i) ? 'checked' : '' %> >
+                  <span class="form-check-label"><%= dayNames[i] %></span>
+                </label>
+              <% } %>
+            </div>
+            <div class="muted small">إذا لم تُحدد أيامًا سيُستخدم الإعداد السابق أو الافتراضي (الأحد–الخميس).</div>
+                      </div>
+                      <div class="col-12 col-md-6">
+            <div class="muted small mt-4">التوقيت يعتمد على <strong>Asia/Riyadh</strong>.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Feedback -->
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="opsHeadFeedback">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#opsFeedback" aria-expanded="false" aria-controls="opsFeedback">
+                    التقييم
+                  </button>
+                </h2>
+                <div id="opsFeedback" class="accordion-collapse collapse" aria-labelledby="opsHeadFeedback" data-bs-parent="#opsAccordion">
+                  <div class="accordion-body">
+                    <div class="row g-2">
+
+                      <div class="col-12">
+                        <div class="muted small mb-2" id="feedbackSettings">هذا الإعداد يحدد آلية استقبال التقييم عند تعدد الكونترات.</div>
+                      </div>
+                      <div class="col-12">
+            <label class="form-label">وضع التقييم</label>
+            <select class="form-select" name="feedback_mode">
+              <option value="shared" <%= (settings.feedback_mode||'shared')==='shared' ? 'selected' : '' %>>مشترك (جهاز واحد عند المخرج - طابور تقييم)</option>
+              <option value="per_counter" <%= (settings.feedback_mode||'shared')==='per_counter' ? 'selected' : '' %>>لكل كونتر (تقييم مستقل لكل كونتر)</option>
+            </select>
+            <div class="text-muted small mt-1">في وضع "لكل كونتر" استخدم رابط: <code>/feedback?counter_id=1</code></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="col-12">
+            <hr class="admin-hr my-3"/>
+            <button type="submit" id="opsSaveBtn" class="btn btn-outline-secondary w-100">حفظ الإعدادات</button>
+            <div id="opsSaveHint" class="text-muted small mt-2" style="display:none;">جارٍ حفظ الإعدادات…</div>
+          </div>
+        </form>
+
+        <script>
+          (function(){
+            // Ensure the save button always triggers a form submit even if browser quirks occur.
+            var btn = document.getElementById('opsSaveBtn');
+            if(!btn) return;
+            var form = btn.closest('form');
+            if(!form) return;
+            btn.addEventListener('click', function(){
+              btn.disabled = true;
+              var hint = document.getElementById('opsSaveHint');
+              if(hint) hint.style.display = 'block';
+              try{ form.requestSubmit ? form.requestSubmit() : form.submit(); }
+              catch(e){ try{ form.submit(); }catch(_){} }
+            });
+          })();
+        </script>
+      </div>
+    </div>
+
+    <div class="col-12" id="sec-counters">
+      <div class="card p-4">
+        <div class="d-flex align-items-center justify-content-between">
+          <h4 class="fw-bold mb-0">الكونترات (اليوم: <%= workDate %>)</h4>
+          <div class="muted">تفعيل يومي + ترتيب أولوية</div>
+        </div>
+
+        <!-- إضافة كونتر داخل نفس قسم كونترات اليوم لزيادة التنظيم -->
+        <div class="border rounded p-3 mt-3 bg-body-tertiary">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="fw-bold">إضافة كونتر</div>
+            <div class="muted small">سيظهر مباشرة ضمن قائمة كونترات اليوم</div>
+          </div>
+          <form method="post" action="/admin/counters/add" class="row g-2 mt-1">
+            <div class="col-12 col-md-8">
+              <label class="form-label">اسم الكونتر</label>
+              <input class="form-control" name="name" placeholder="مثال: كونتر 11">
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">الأولوية</label>
+              <input class="form-control" name="priority_order" placeholder="11">
+            </div>
+            <div class="col-12">
+              <button class="btn btn-primary w-100">إضافة</button>
+            </div>
+          </form>
+        </div>
+        <div class="table-responsive mt-3">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>#</th><th>الاسم</th><th>الأولوية</th><th>مفعّل اليوم</th><th>نشط دائمًا</th><th>الموظف</th><th>تعديل</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% counters.forEach(c => { %>
+                <tr>
+                  <td><%= c.id %></td>
+                  <td class="fw-bold"><%= c.name %></td>
+                  <td><%= c.priority_order %></td>
+                  <td>
+                    <form method="post" action="/admin/counters/toggle">
+                      <input type="hidden" name="counter_id" value="<%= c.id %>">
+                      <input type="hidden" name="enabled_today" value="<%= !c.enabled_today %>">
+                      <button class="btn btn-sm <%= c.enabled_today ? 'btn-success':'btn-outline-secondary' %>">
+                        <%= c.enabled_today ? 'نعم':'لا' %>
+                      </button>
+                    </form>
+                  </td>
+                  <td><span class="badge <%= c.is_active ? 'text-bg-primary':'text-bg-secondary' %>"><%= c.is_active?'نعم':'لا' %></span></td>
+                  <td class="muted"><%= c.session_user || '-' %></td>
+                  <td>
+                    <form method="post" action="/admin/counters/update" class="d-flex gap-1">
+                      <input type="hidden" name="counter_id" value="<%= c.id %>">
+                      <input class="form-control form-control-sm" name="name" value="<%= c.name %>" style="max-width:180px">
+                      <input class="form-control form-control-sm" name="priority_order" value="<%= c.priority_order %>" style="max-width:90px">
+                      <select class="form-select form-select-sm" name="is_active" style="max-width:90px">
+                        <option value="true" <%= c.is_active?'selected':'' %>>نعم</option>
+                        <option value="false" <%= !c.is_active?'selected':'' %>>لا</option>
+                      </select>
+                      <button class="btn btn-sm btn-outline-secondary">حفظ</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12" id="sec-services">
+      <div class="card p-4">
+        <div class="admin-section-title">
+          <h4 class="fw-bold mb-0">الخدمات</h4>
+          <div class="muted">إضافة/تعديل/حذف الخدمات وترتيب ظهورها في الكشك</div>
+        </div>
+        <hr class="admin-hr my-3"/>
+
+        <div class="admin-subcard border rounded-4 p-3 bg-body-tertiary">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="fw-bold">إضافة خدمة</div>
+            <div class="muted small">ستظهر مباشرة ضمن القوائم حسب النوع</div>
+          </div>
+        <form method="post" action="/admin/services/add" class="row g-2 mt-1">
+          <div class="col-12">
+            <label class="form-label">اسم الخدمة</label>
+            <input class="form-control" name="name_ar" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label">اسم الخدمة (English)</label>
+            <input class="form-control" name="name_en" placeholder="e.g., Inquiry">
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">النوع</label>
+            <select class="form-select" name="type">
+              <option value="walkin">حضور</option>
+              <option value="appointment">موعد</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">الكود (اختياري)</label>
+            <input class="form-control" name="code_prefix" placeholder="X">
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">تظهر في الكشك؟</label>
+            <select class="form-select" name="kiosk_visible">
+              <option value="true">نعم</option>
+              <option value="false">لا</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">التوفر</label>
+            <select class="form-select" name="availability_mode">
+              <option value="always">دائم</option>
+              <option value="weekly_day">يوم أسبوعي</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">اليوم (0..6)</label>
+            <input class="form-control" name="availability_weekday" placeholder="4 للخميس">
+          </div>
+
+          <div class="col-12">
+            <button class="btn btn-primary w-100">إضافة</button>
+          </div>
+        </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12" id="sec-services-list">
+      <div class="card p-4">
+        <div class="admin-section-title">
+          <h4 class="fw-bold mb-0">الخدمات الحالية</h4>
+          <div class="muted">كل قسم مستقل بكامل خدماته</div>
+        </div>
+        <% const _servicesWalkin = services.filter(x=>x.type!=='appointment'); %>
+        <% const _servicesAppt = services.filter(x=>x.type==='appointment'); %>
+
+        <!-- خدمات الحضور (قسم مستقل) -->
+        <div class="mt-3">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="fw-bold">خدمات الحضور</div>
+            <div class="muted small">تظهر في الكشك حسب إعداد (بالكشك)</div>
+          </div>
+          <div class="table-responsive mt-2">
+            <table class="table table-sm">
+              <thead><tr><th>#</th><th>الاسم</th><th>English</th><th>الكود</th><th>بالكشك</th><th>نشط</th><th style="min-width:420px">تعديل</th></tr></thead>
+              <tbody>
+                <% _servicesWalkin.forEach(s => { %>
+                  <tr>
+                    <td><%= s.id %></td>
+                    <td class="fw-bold"><%= s.name_ar %></td>
+                    <td class="muted"><%= s.name_en || '-' %></td>
+                    <td><%= s.code_prefix || '-' %></td>
+                    <td><%= s.kiosk_visible ? 'نعم':'لا' %></td>
+                    <td><%= s.is_active ? 'نعم':'لا' %></td>
+                    <td>
+                      <form method="post" action="/admin/services/update" class="d-flex gap-1 flex-wrap">
+                        <input type="hidden" name="service_id" value="<%= s.id %>">
+                        <input class="form-control form-control-sm" name="name_ar" value="<%= s.name_ar %>" style="max-width:180px">
+                        <input class="form-control form-control-sm" name="name_en" value="<%= s.name_en || '' %>" style="max-width:180px">
+                        <input type="hidden" name="type" value="walkin">
+                        <input class="form-control form-control-sm" name="code_prefix" value="<%= s.code_prefix || '' %>" style="max-width:70px">
+                        <select class="form-select form-select-sm" name="kiosk_visible" style="max-width:90px">
+                          <option value="true" <%= s.kiosk_visible?'selected':'' %>>نعم</option>
+                          <option value="false" <%= !s.kiosk_visible?'selected':'' %>>لا</option>
+                        </select>
+                        <select class="form-select form-select-sm" name="is_active" style="max-width:90px">
+                          <option value="true" <%= s.is_active?'selected':'' %>>نعم</option>
+                          <option value="false" <%= !s.is_active?'selected':'' %>>لا</option>
+                        </select>
+                        <select class="form-select form-select-sm" name="availability_mode" style="max-width:120px">
+                          <option value="always" <%= s.availability_mode==='always'?'selected':'' %>>دائم</option>
+                          <option value="weekly_day" <%= s.availability_mode==='weekly_day'?'selected':'' %>>يوم</option>
+                        </select>
+                        <input class="form-control form-control-sm" name="availability_weekday" value="<%= s.availability_weekday ?? '' %>" style="max-width:60px">
+                        <button class="btn btn-sm btn-outline-secondary">حفظ</button>
+                        <button class="btn btn-sm btn-outline-danger" formaction="/admin/services/delete" onclick="return confirm('تأكيد حذف الخدمة؟ (سيتم تعطيلها حفاظًا على التقارير)')">حذف</button>
+                      </form>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- خدمات المواعيد (قسم مستقل) -->
+        <div class="mt-4">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="fw-bold">خدمات المواعيد</div>
+            <div class="muted small">مخصصة للتحقق من موعد</div>
+          </div>
+          <div class="table-responsive mt-2">
+            <table class="table table-sm">
+              <thead><tr><th>#</th><th>الاسم</th><th>English</th><th>الكود</th><th>بالكشك</th><th>نشط</th><th style="min-width:420px">تعديل</th></tr></thead>
+              <tbody>
+                <% _servicesAppt.forEach(s => { %>
+                  <tr>
+                    <td><%= s.id %></td>
+                    <td class="fw-bold"><%= s.name_ar %></td>
+                    <td class="muted"><%= s.name_en || '-' %></td>
+                    <td><%= s.code_prefix || '-' %></td>
+                    <td><%= s.kiosk_visible ? 'نعم':'لا' %></td>
+                    <td><%= s.is_active ? 'نعم':'لا' %></td>
+                    <td>
+                      <form method="post" action="/admin/services/update" class="d-flex gap-1 flex-wrap">
+                        <input type="hidden" name="service_id" value="<%= s.id %>">
+                        <input class="form-control form-control-sm" name="name_ar" value="<%= s.name_ar %>" style="max-width:180px">
+                        <input class="form-control form-control-sm" name="name_en" value="<%= s.name_en || '' %>" style="max-width:180px">
+                        <input type="hidden" name="type" value="appointment">
+                        <input class="form-control form-control-sm" name="code_prefix" value="<%= s.code_prefix || '' %>" style="max-width:70px">
+                        <select class="form-select form-select-sm" name="kiosk_visible" style="max-width:90px">
+                          <option value="true" <%= s.kiosk_visible?'selected':'' %>>نعم</option>
+                          <option value="false" <%= !s.kiosk_visible?'selected':'' %>>لا</option>
+                        </select>
+                        <select class="form-select form-select-sm" name="is_active" style="max-width:90px">
+                          <option value="true" <%= s.is_active?'selected':'' %>>نعم</option>
+                          <option value="false" <%= !s.is_active?'selected':'' %>>لا</option>
+                        </select>
+                        <select class="form-select form-select-sm" name="availability_mode" style="max-width:120px">
+                          <option value="always" <%= s.availability_mode==='always'?'selected':'' %>>دائم</option>
+                          <option value="weekly_day" <%= s.availability_mode==='weekly_day'?'selected':'' %>>يوم</option>
+                        </select>
+                        <input class="form-control form-control-sm" name="availability_weekday" value="<%= s.availability_weekday ?? '' %>" style="max-width:60px">
+                        <button class="btn btn-sm btn-outline-secondary">حفظ</button>
+                        <button class="btn btn-sm btn-outline-danger" formaction="/admin/services/delete" onclick="return confirm('تأكيد حذف الخدمة؟ (سيتم تعطيلها حفاظًا على التقارير)')">حذف</button>
+                      </form>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12" id="sec-routing">
+      <div class="card p-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <h4 class="fw-bold mb-0">ربط الخدمات بالكونترات (توجيه المستفيد)</h4>
+          <div class="muted">اختياري: تحديد كونتر مفضّل لكل خدمة. إذا لم يتم الربط يستخدم النظام التوزيع التلقائي حسب الأقل ازدحامًا.</div>
+        </div>
+        <% const _routingNormal = services.filter(x => (x.group||'') !== 'teacher'); %>
+        <% const _routingTeacher = services.filter(x => (x.group||'') === 'teacher'); %>
+
+        <!-- Accordion (same interaction style as "إعدادات التشغيل") -->
+        <div class="mt-3">
+          <div class="accordion" id="routingAccordion">
+
+            <!-- Normal services -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="routingHeadNormal">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#routingNormal" aria-expanded="true" aria-controls="routingNormal">
+                  الخدمات العامة
+                </button>
+              </h2>
+              <div id="routingNormal" class="accordion-collapse collapse show" aria-labelledby="routingHeadNormal" data-bs-parent="#routingAccordion">
+                <div class="accordion-body">
+                  <div class="muted small mb-2">هذه الخدمات تظهر لجميع الفئات (حسب إعدادات الكشك)</div>
+                  <div class="table-responsive">
+                    <table class="table table-sm">
+                      <thead>
+                        <tr>
+                          <th>الخدمة</th>
+                          <th style="width: 420px;">الكونتر المفضل</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% _routingNormal.forEach(s => { %>
+                          <tr>
+                            <td class="fw-bold"><%= s.name_ar %> <span class="muted">(#<%= s.id %>)</span></td>
+                            <td>
+                              <form method="post" action="/admin/service-routing/update" class="d-flex gap-2 flex-wrap">
+                                <input type="hidden" name="service_id" value="<%= s.id %>">
+                                <select class="form-select form-select-sm" name="counter_id" style="max-width: 280px;">
+                                  <option value="">تلقائي (بدون ربط)</option>
+                                  <% counters.forEach(c=>{ %>
+                                    <option value="<%= c.id %>" <%= (settings.service_counter_map && settings.service_counter_map[String(s.id)]===c.id) ? 'selected' : '' %> >
+                                      كونتر <%= c.id %> — <%= c.name %>
+                                    </option>
+                                  <% }) %>
+                                </select>
+                                <button class="btn btn-sm btn-outline-secondary">حفظ</button>
+                              </form>
+                            </td>
+                          </tr>
+                        <% }) %>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Teacher services -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="routingHeadTeacher">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#routingTeacher" aria-expanded="false" aria-controls="routingTeacher">
+                  قسم المعلم
+                </button>
+              </h2>
+              <div id="routingTeacher" class="accordion-collapse collapse" aria-labelledby="routingHeadTeacher" data-bs-parent="#routingAccordion">
+                <div class="accordion-body">
+                  <div class="muted small mb-2">هذه الخدمات تظهر فقط عند اختيار فئة (معلم) في الكشك</div>
+                  <div class="table-responsive">
+                    <table class="table table-sm">
+                      <thead>
+                        <tr>
+                          <th>تصنيف المعلم</th>
+                          <th style="width: 420px;">الكونتر المفضل</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% _routingTeacher.forEach(s => { %>
+                          <tr>
+                            <td class="fw-bold"><%= s.name_ar %>
+                              <span class="badge text-bg-secondary" style="font-weight:700">معلم</span>
+                              <span class="muted">(#<%= s.id %>)</span>
+                            </td>
+                            <td>
+                              <form method="post" action="/admin/service-routing/update" class="d-flex gap-2 flex-wrap">
+                                <input type="hidden" name="service_id" value="<%= s.id %>">
+                                <select class="form-select form-select-sm" name="counter_id" style="max-width: 280px;">
+                                  <option value="">تلقائي (بدون ربط)</option>
+                                  <% counters.forEach(c=>{ %>
+                                    <option value="<%= c.id %>" <%= (settings.service_counter_map && settings.service_counter_map[String(s.id)]===c.id) ? 'selected' : '' %> >
+                                      كونتر <%= c.id %> — <%= c.name %>
+                                    </option>
+                                  <% }) %>
+                                </select>
+                                <button class="btn btn-sm btn-outline-secondary">حفظ</button>
+                              </form>
+                            </td>
+                          </tr>
+                        <% }) %>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12" id="sec-users">
+      <div class="card p-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <h4 class="fw-bold mb-0">المستخدمون (الموظفون)</h4>
+          <div class="muted">تسجيل موظفي الكونتر + تفعيل/إيقاف + صلاحيات</div>
+        </div>
+
+        <div class="row g-3 mt-1">
+          <div class="col-12 col-lg-4">
+            <div class="bg-light rounded p-3">
+              <h6 class="fw-bold mb-2">إضافة مستخدم</h6>
+              <form method="post" action="/admin/users/add" class="row g-2">
+                <div class="col-12">
+                  <label class="form-label">اسم المستخدم</label>
+                  <input class="form-control" name="username" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">الاسم</label>
+                  <input class="form-control" name="full_name" placeholder="اسم الموظف">
+                </div>
+                <div class="col-12">
+                  <label class="form-label">كلمة المرور</label>
+                  <input class="form-control" name="password" placeholder="افتراضي 1234">
+                </div>
+                <div class="col-12">
+                  <label class="form-label">الدور</label>
+                  <select class="form-select" name="role">
+                    <option value="counter">موظف كونتر</option>
+                    <option value="supervisor">مشرف (تقارير فقط)</option>
+                    <option value="admin">مدير نظام</option>
+                  </select>
+                </div>
+
+                <div class="col-12">
+                  <label class="form-label">الكونتر (للموظف)</label>
+                  <select class="form-select" name="fixed_counter_id">
+                    <option value="">تلقائي (حسب المتاح)</option>
+                    <% counters.forEach(c=>{ %>
+                      <option value="<%= c.id %>">كونتر <%= c.id %> — <%= c.name %></option>
+                    <% }) %>
+                  </select>
+                  <div class="muted small mt-1">إذا اخترت كونتر محدد، سيتم ربط الموظف به عند تسجيل الدخول (إذا كان متاحًا وغير مشغول).</div>
+                </div>
+
+                <div class="col-12">
+                  <label class="form-label">الخدمات المقدمة (للموظف)</label>
+                  <% const _svcWalkinAdd = services.filter(x=>x.type!=='appointment'); %>
+                  <% const _svcApptAdd = services.filter(x=>x.type==='appointment'); %>
+                  <div class="border rounded p-2" style="max-height:220px; overflow:auto;">
+                    <div class="form-check mb-2">
+                      <input class="form-check-input" type="checkbox" id="svc_all_add" checked>
+                      <label class="form-check-label fw-bold" for="svc_all_add">اختيار الكل (افتراضي)</label>
+                    </div>
+                    <div class="row g-2">
+                      <div class="col-12 col-md-6">
+                        <div class="fw-bold small mb-1">خدمات الحضور</div>
+                        <% _svcWalkinAdd.forEach(s=>{ %>
+                          <div class="form-check">
+                            <input class="form-check-input svc-add" type="checkbox" name="service_ids" value="<%= s.id %>" id="add_svc_<%= s.id %>" checked>
+                            <label class="form-check-label" for="add_svc_<%= s.id %>"><%= s.name_ar %></label>
+                          </div>
+                        <% }) %>
+                      </div>
+                      <div class="col-12 col-md-6">
+                        <div class="fw-bold small mb-1">خدمات المواعيد</div>
+                        <% _svcApptAdd.forEach(s=>{ %>
+                          <div class="form-check">
+                            <input class="form-check-input svc-add" type="checkbox" name="service_ids" value="<%= s.id %>" id="add_svc_<%= s.id %>" checked>
+                            <label class="form-check-label" for="add_svc_<%= s.id %>"><%= s.name_ar %></label>
+                          </div>
+                        <% }) %>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="muted small mt-1">الافتراضي: جميع الخدمات مضافة ✅ (تقدر تلغي أي خدمة بعلامة الصح)</div>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">مفعل؟</label>
+                  <select class="form-select" name="is_active">
+                    <option value="true">نعم</option>
+                    <option value="false">لا</option>
+                  </select>
+                </div>
+                <div class="col-12">
+                  <button class="btn btn-primary w-100">إضافة</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div class="col-12 col-lg-8">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead><tr><th>#</th><th>المستخدم</th><th>الاسم</th><th>الدور</th><th>مفعل</th><th>تعديل</th></tr></thead>
+                <tbody>
+                  <% users.forEach(u => { %>
+                    <tr>
+                      <td><%= u.id %></td>
+                      <td class="fw-bold"><%= u.username %></td>
+                      <td><%= u.full_name %></td>
+                      <td>
+                        <span class="badge <%= u.role==='admin' ? 'text-bg-dark' : (u.role==='supervisor' ? 'text-bg-primary' : 'text-bg-secondary') %>">
+                          <%= u.role %>
+                        </span>
+                      </td>
+                      <td><%= u.is_active ? 'نعم' : 'لا' %></td>
+                      <td>
+                        <form method="post" action="/admin/users/update" class="d-flex gap-1 flex-wrap">
+                          <input type="hidden" name="user_id" value="<%= u.id %>">
+                          <input class="form-control form-control-sm" name="username" value="<%= u.username %>" style="max-width:140px">
+                          <input class="form-control form-control-sm" name="full_name" value="<%= u.full_name %>" style="max-width:160px">
+                          <input class="form-control form-control-sm" name="password" placeholder="كلمة مرور جديدة" style="max-width:140px">
+                          <select class="form-select form-select-sm" name="role" style="max-width:110px">
+                            <option value="counter" <%= u.role==='counter'?'selected':'' %>>counter</option>
+                            <option value="supervisor" <%= u.role==='supervisor'?'selected':'' %>>supervisor</option>
+                            <option value="admin" <%= u.role==='admin'?'selected':'' %>>admin</option>
+                          </select>
+
+                          <% const uFixed = (u.fixed_counter_id!=null && String(u.fixed_counter_id).trim()!=='') ? Number(u.fixed_counter_id) : null; %>
+                          <select class="form-select form-select-sm" name="fixed_counter_id" style="max-width:210px">
+                            <option value="">تلقائي</option>
+                            <% counters.forEach(c=>{ %>
+                              <option value="<%= c.id %>" <%= (uFixed && uFixed===c.id) ? 'selected':'' %>>كونتر <%= c.id %> — <%= c.name %></option>
+                            <% }) %>
+                          </select>
+
+                          <% const uAllowed = Array.isArray(u.allowed_service_ids) ? u.allowed_service_ids.map(Number) : []; %>
+                          <% const uAll = (uAllowed.length===0); %>
+                          <% const _svcWalkin = services.filter(x=>x.type!=='appointment'); %>
+                          <% const _svcAppt = services.filter(x=>x.type==='appointment'); %>
+                          <details style="min-width:260px" class="w-100">
+                            <summary class="small">الخدمات (اضغط للتعديل)</summary>
+                            <div class="border rounded p-2 mt-2" style="max-height:220px; overflow:auto;">
+                              <div class="form-check mb-2">
+                                <input class="form-check-input svc-all" type="checkbox" id="all_u_<%= u.id %>" data-user="<%= u.id %>" <%= uAll ? 'checked':'' %>>
+                                <label class="form-check-label fw-bold" for="all_u_<%= u.id %>">اختيار الكل</label>
+                              </div>
+                              <div class="row g-2">
+                                <div class="col-12 col-md-6">
+                                  <div class="fw-bold small mb-1">خدمات الحضور</div>
+                                  <% _svcWalkin.forEach(s=>{ %>
+                                    <div class="form-check">
+                                      <input class="form-check-input svc-u-<%= u.id %>" type="checkbox" name="service_ids" value="<%= s.id %>" id="u_<%= u.id %>_svc_<%= s.id %>" <%= (uAll || uAllowed.includes(s.id)) ? 'checked':'' %>>
+                                      <label class="form-check-label" for="u_<%= u.id %>_svc_<%= s.id %>"><%= s.name_ar %></label>
+                                    </div>
+                                  <% }) %>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                  <div class="fw-bold small mb-1">خدمات المواعيد</div>
+                                  <% _svcAppt.forEach(s=>{ %>
+                                    <div class="form-check">
+                                      <input class="form-check-input svc-u-<%= u.id %>" type="checkbox" name="service_ids" value="<%= s.id %>" id="u_<%= u.id %>_svc_<%= s.id %>" <%= (uAll || uAllowed.includes(s.id)) ? 'checked':'' %>>
+                                      <label class="form-check-label" for="u_<%= u.id %>_svc_<%= s.id %>"><%= s.name_ar %></label>
+                                    </div>
+                                  <% }) %>
+                                </div>
+                              </div>
+                              <div class="muted small mt-2">إذا خليت كل الخدمات محددة، النظام يعتبرها (الكل) تلقائيًا.</div>
+                            </div>
+                          </details>
+
+                          <select class="form-select form-select-sm" name="is_active" style="max-width:90px">
+                            <option value="true" <%= u.is_active?'selected':'' %>>نعم</option>
+                            <option value="false" <%= !u.is_active?'selected':'' %>>لا</option>
+                          </select>
+                          <button class="btn btn-sm btn-outline-secondary">حفظ</button>
+                        </form>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+            <div class="muted small">ملاحظة: تغيير كلمة المرور يتم فقط إذا أدخلت قيمة جديدة.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+          <div class="col-12" id="sec-backup">
+      <div class="card p-4">
+        <h4 class="fw-bold">نسخة احتياطية واستعادة</h4>
+        <div class="muted">تنزيل نسخة احتياطية تشمل قاعدة البيانات + (Voice Pack/الأصوات/الشعارات) إن وُجدت. قبل الاستعادة سيتم حفظ نسخة تلقائية داخل مجلد <code>data/backups</code>.</div>
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <a class="btn btn-outline-primary" href="/admin/backup/download.zip">تحميل نسخة احتياطية (ZIP)</a>
+          <form method="post" action="/admin/backup/restore" enctype="multipart/form-data" class="d-flex gap-2">
+            <input class="form-control" type="file" name="backup_zip" accept=".zip" required>
+            <button class="btn btn-outline-danger" onclick="return confirm('هل أنت متأكد؟ سيتم استبدال البيانات الحالية. تم حفظ نسخة قبل الاستعادة تلقائيًا.')">استعادة</button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+
+
+
+
+  </div>
+</div>
+
+<script>
+// Services checkboxes UX (select all)
+(function(){
+  // Add-user select all
+  const allAdd = document.getElementById('svc_all_add');
+  if (allAdd){
+    const list = ()=> Array.from(document.querySelectorAll('.svc-add'));
+    const syncAll = ()=>{
+      const boxes = list();
+      const allChecked = boxes.length ? boxes.every(b=>b.checked) : true;
+      allAdd.checked = allChecked;
+      allAdd.indeterminate = !allChecked && boxes.some(b=>b.checked);
+    };
+    allAdd.addEventListener('change', ()=>{
+      list().forEach(b=> b.checked = allAdd.checked);
+      allAdd.indeterminate = false;
+    });
+    list().forEach(b=> b.addEventListener('change', syncAll));
+    syncAll();
+  }
+
+  // Per-user select all (inside details)
+  const allUser = Array.from(document.querySelectorAll('.svc-all'));
+  allUser.forEach(allBox=>{
+    const uid = allBox.getAttribute('data-user');
+    const list = ()=> Array.from(document.querySelectorAll(`.svc-u-${uid}`));
+    const syncAll = ()=>{
+      const boxes = list();
+      const allChecked = boxes.length ? boxes.every(b=>b.checked) : true;
+      allBox.checked = allChecked;
+      allBox.indeterminate = !allChecked && boxes.some(b=>b.checked);
+    };
+    allBox.addEventListener('change', ()=>{
+      list().forEach(b=> b.checked = allBox.checked);
+      allBox.indeterminate = false;
+    });
+    list().forEach(b=> b.addEventListener('change', syncAll));
+    syncAll();
+  });
+})();
+
+// Sound Test Button (Admin Settings)
+(function(){
+  const $ = (sel)=> document.querySelector(sel);
+  const statusEl = ()=> $('#soundTestStatus');
+  const setStatus = (t)=>{ const el = statusEl(); if(el) el.textContent = t || ''; };
+
+  let _audioCtx = null;
+  function getAudioCtx(){
+    if (_audioCtx) return _audioCtx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    _audioCtx = new AC();
+    return _audioCtx;
+  }
+  async function unlockAudio(){
+    try{
+      const ctx = getAudioCtx();
+      if (ctx && ctx.state !== 'running'){
+        try{ await ctx.resume(); }catch(e){}
+      }
+      if (window.speechSynthesis){
+        try{ window.speechSynthesis.cancel(); window.speechSynthesis.resume(); }catch(e){}
+      }
+      // Tiny silent beep to fully unlock in some browsers
+      try{
+        const c = getAudioCtx();
+        if (c){
+          const o = c.createOscillator();
+          const g = c.createGain();
+          g.gain.value = 0.001;
+          o.connect(g); g.connect(c.destination);
+          o.start(); o.stop(c.currentTime + 0.03);
+        }
+      }catch(e){}
+      setStatus('تم تفعيل الصوت ✅');
+      return true;
+    }catch(e){
+      setStatus('تعذر تفعيل الصوت');
+      return false;
+    }
+  }
+
+  function readFormSound(){
+    const form = document.querySelector('form[action="/admin/settings/update"]');
+    const val = (name)=> form?.querySelector(`[name="${name}"]`)?.value;
+    const bool = (name)=> String(val(name) || '').toLowerCase() === 'true';
+    const num = (name, def)=> {
+      const v = Number(val(name));
+      return Number.isFinite(v) ? v : def;
+    };
+    return {
+      enabled: bool('sound_enabled'),
+      chime: bool('sound_chime'),
+      chime_style: (val('sound_chime_style') || 'alarm'),
+      chime_volume: num('sound_chime_volume', 0.85),
+      speak_ar: bool('sound_speak_ar'),
+      speak_en: bool('sound_speak_en'),
+      mode: (val('sound_mode') || 'tts'),
+      voice_gender_ar: (val('sound_voice_gender_ar') || 'auto'),
+      voice_gender_en: (val('sound_voice_gender_en') || 'auto'),
+      phrase_ar: (val('sound_phrase_ar') || '').trim(),
+      phrase_en: (val('sound_phrase_en') || '').trim(),
+    };
+  }
+
+  function mapChimeSrc(style){
+    const s = String(style||'alarm');
+    if (s === 'bell') return '/public/sounds/bell.wav';
+    if (s === 'airport') return '/public/sounds/airport.wav';
+    return '/public/sounds/alarm.mp3';
+  }
+
+  async function playHtmlAudio(src, volume){
+    try{
+      await unlockAudio();
+      return await new Promise((resolve)=>{
+        const a = new Audio(src);
+        a.preload = 'auto';
+        a.volume = Math.max(0, Math.min(1, (typeof volume === 'number') ? volume : 1));
+        let done = false;
+        const finish = (ok)=>{ if(done) return; done=true; try{a.pause();}catch(e){} resolve(!!ok); };
+        a.onended = ()=> finish(true);
+        a.onerror = ()=> finish(false);
+        setTimeout(()=> finish(false), 7000);
+        a.play().catch(()=> finish(false));
+      });
+    }catch(e){
+      return false;
+    }
+  }
+
+  // Extract digits from a string.
+  // Supports ASCII (0-9) and Arabic-Indic digits (٠-٩ / ۰-۹).
+  function extractDigits(str){
+    const s = String(str||'');
+    const normalized = s
+      .replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+      .replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
+    const m = normalized.match(/[0-9]+/g);
+    return m ? m.join('') : '';
+  }
+
+  // Extract first Latin letter used as service prefix (e.g., A in A-012).
+  function extractPrefixLetter(str){
+    const s = String(str||'');
+    const m = s.match(/[A-Za-z]/);
+    return m ? m[0].toUpperCase() : '';
+  }
+  function buildVoicePackSequence(lang, ticket, counter){
+    const tDigits = extractDigits(ticket);
+    const tPrefix = extractPrefixLetter(ticket);
+    const cDigits = extractDigits(counter);
+    if (!tDigits || !cDigits) return null;
+    if (lang === 'ar'){
+      const base = '/public/voicepack/ar';
+      return [
+        `${base}/words/number.mp3`,
+        ...(tPrefix ? [{url:`${base}/letters/${tPrefix}.mp3`, optional:true}] : []),
+        ...tDigits.split('').map(d=> `${base}/digits/${d}.mp3`),
+        `${base}/words/please_go_to.mp3`,
+        `${base}/words/counter.mp3`,
+        ...cDigits.split('').map(d=> `${base}/digits/${d}.mp3`)
+      ];
+    }
+    if (lang === 'en'){
+      const base = '/public/voicepack/en';
+      return [
+        `${base}/words/ticket.mp3`,
+        ...(tPrefix ? [{url:`${base}/letters/${tPrefix}.mp3`, optional:true}] : []),
+        ...tDigits.split('').map(d=> `${base}/digits/${d}.mp3`),
+        `${base}/words/please_go_to.mp3`,
+        `${base}/words/counter.mp3`,
+        ...cDigits.split('').map(d=> `${base}/digits/${d}.mp3`)
+      ];
+    }
+    return null;
+  }
+
+  async function playVoicePack(settings, ticket, counter){
+    const blocks = [];
+    if (settings.speak_ar){
+      const seq = buildVoicePackSequence('ar', ticket, counter);
+      if (seq) blocks.push(seq);
+    }
+    if (settings.speak_en){
+      const seq = buildVoicePackSequence('en', ticket, counter);
+      if (seq) blocks.push(seq);
+    }
+    if (!blocks.length) return true;
+    for (const seq of blocks){
+      for (const item of seq){
+        const url = (typeof item === 'string') ? item : item?.url;
+        const optional = (typeof item === 'object' && item) ? !!item.optional : false;
+        if (!url) continue;
+        const ok = await playHtmlAudio(url, 1);
+        if (!ok && !optional) return false;
+      }
+    }
+    return true;
+  }
+
+  function pickVoice(langPrefix, gender){
+    try{
+      const voices = (window.speechSynthesis && window.speechSynthesis.getVoices) ? window.speechSynthesis.getVoices() : [];
+      const filtered = voices.filter(v=> (v.lang||'').toLowerCase().startsWith(String(langPrefix).toLowerCase()));
+      if (!filtered.length) return null;
+      if (gender === 'male'){
+        const m = filtered.find(v=> /male|man|masc|ذكر/i.test(v.name||''));
+        if (m) return m;
+      }
+      if (gender === 'female'){
+        const f = filtered.find(v=> /female|woman|fem|أنثى/i.test(v.name||''));
+        if (f) return f;
+      }
+      return filtered[0];
+    }catch(e){
+      return null;
+    }
+  }
+
+  function renderPhrase(tpl, ticket, counter, fallback){
+    const base = (tpl && tpl.trim()) ? tpl.trim() : fallback;
+    return base.replaceAll('{ticket}', String(ticket)).replaceAll('{counter}', String(counter));
+  }
+
+  async function speakTTS(settings, ticket, counter){
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return false;
+    await unlockAudio();
+
+    const blocks = [];
+    if (settings.speak_ar){
+      blocks.push({
+        lang: 'ar-SA',
+        gender: settings.voice_gender_ar,
+        text: renderPhrase(settings.phrase_ar, ticket, counter, `الرقم ${ticket}، تفضل إلى الكونتر ${counter}`)
+      });
+    }
+    if (settings.speak_en){
+      blocks.push({
+        lang: 'en-US',
+        gender: settings.voice_gender_en,
+        text: renderPhrase(settings.phrase_en, ticket, counter, `Ticket ${ticket}, please go to counter ${counter}`)
+      });
+    }
+    if (!blocks.length) return true;
+
+    const speakOne = (b)=> new Promise((resolve)=>{
+      try{
+        const u = new SpeechSynthesisUtterance(b.text);
+        u.lang = b.lang;
+        const v = pickVoice(b.lang, b.gender);
+        if (v) u.voice = v;
+        let done = false;
+        const finish = (ok)=>{ if(done) return; done=true; resolve(!!ok); };
+        u.onend = ()=> finish(true);
+        u.onerror = ()=> finish(false);
+        setTimeout(()=> finish(true), 12000);
+        window.speechSynthesis.speak(u);
+      }catch(e){ resolve(false); }
+    });
+
+    // Some browsers load voices asynchronously
+    if (window.speechSynthesis.getVoices().length === 0){
+      await new Promise((r)=> setTimeout(r, 250));
+    }
+
+    for (const b of blocks){
+      const ok = await speakOne(b);
+      if (!ok) return false;
+    }
+    return true;
+  }
+
+  async function testSound(){
+    const ticket = ($('#soundTestTicket')?.value || '105').trim();
+    const counter = ($('#soundTestCounter')?.value || '2').trim();
+    const s = readFormSound();
+
+    setStatus('جاري التشغيل...');
+    await unlockAudio();
+
+    // Chime
+    if (s.chime){
+      const okChime = await playHtmlAudio(mapChimeSrc(s.chime_style), s.chime_volume);
+      if (!okChime) setStatus('تعذر تشغيل الجرس — حاول تفعيل الصوت ثم أعد المحاولة');
+    }
+
+    // Voice (recordings or TTS)
+    let ok = true;
+    if (s.mode === 'recordings'){
+      ok = await playVoicePack(s, ticket, counter);
+      if (!ok){
+        // Fallback to TTS for test
+        setStatus('Voice Pack غير مكتمل — جاري الرجوع لصوت النظام للاختبار...');
+        ok = await speakTTS(s, ticket, counter);
+      }
+    } else {
+      ok = await speakTTS(s, ticket, counter);
+    }
+
+    setStatus(ok ? 'تم الاختبار ✅' : 'فشل الاختبار ❌');
+  }
+
+  // Wire up buttons
+  document.addEventListener('DOMContentLoaded', ()=>{
+    $('#soundUnlockBtn')?.addEventListener('click', unlockAudio);
+    $('#soundTestBtn')?.addEventListener('click', testSound);
+
+    // Keep status calm
+    setStatus('');
+  });
+})();
+</script>
+</body>
+</html>

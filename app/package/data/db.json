@@ -1,0 +1,512 @@
+{
+  "settings": {
+    "rest_seconds_default": 30,
+    "rest_seconds_min": 10,
+    "rest_seconds_max": 180,
+    "auto_call_enabled": true,
+    "no_show_max_rounds": 3,
+    "feedback_window_seconds": 120,
+    "question1_text": "هل تم إنجاز طلبك؟",
+    "question2_text": "قيّم خدمة الموظف",
+    "appointments": {
+      "enabled": true,
+      "weekday": 4,
+      "start_time": "10:00",
+      "end_time": "12:00",
+      "slot_minutes": 15
+    },
+    "ui": {
+      "theme": "dark",
+      "kiosk_return_seconds": 10,
+      "kiosk_auto_print": true,
+      "kiosk_printing_mode": "browser",
+      "kiosk_show_fullscreen_hint": true,
+      "kiosk_languages": [
+        "ar",
+        "en",
+        "zh",
+        "fr"
+      ],
+      "sound": {
+        "enabled": true,
+        "chime": true,
+        "chime_style": "alarm",
+        "chime_volume": 0.85,
+        "mode": "tts",
+        "speak_ar": true,
+        "speak_en": true,
+        "voice_gender_ar": "auto",
+        "voice_gender_en": "auto",
+        "phrase_ar": "الرقم {ticket}، تفضل إلى {counter}",
+        "phrase_en": "Ticket {ticket}, please go to {counter}"
+      }
+    }
+  },
+  "services": [
+    {
+      "id": 1,
+      "name_ar": "استفسار",
+      "type": "walkin",
+      "code_prefix": "A",
+      "kiosk_visible": true,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "name_en": "Inquiry",
+      "group": ""
+    },
+    {
+      "id": 2,
+      "name_ar": "شكوى",
+      "type": "walkin",
+      "code_prefix": "C",
+      "kiosk_visible": true,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "name_en": "Complaint",
+      "group": ""
+    },
+    {
+      "id": 3,
+      "name_ar": "متابعة طلب",
+      "type": "walkin",
+      "code_prefix": "F",
+      "kiosk_visible": true,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "name_en": "Follow-up",
+      "group": ""
+    },
+    {
+      "id": 4,
+      "name_ar": "حجز لقاء مسؤول",
+      "type": "appointment",
+      "code_prefix": "M",
+      "kiosk_visible": true,
+      "is_active": true,
+      "availability_mode": "weekly_day",
+      "availability_weekday": 4,
+      "name_en": "Book a meeting",
+      "group": ""
+    },
+    {
+      "id": 5,
+      "name_ar": "الرخصة المهنية",
+      "name_en": "Professional License",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Licence professionnelle",
+      "name_zh": "教师资格许可"
+    },
+    {
+      "id": 6,
+      "name_ar": "الأداء الوظيفي",
+      "name_en": "Job Performance",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Performance professionnelle",
+      "name_zh": "工作绩效"
+    },
+    {
+      "id": 7,
+      "name_ar": "الترقيات",
+      "name_en": "Promotions",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Promotions",
+      "name_zh": "晋升"
+    },
+    {
+      "id": 8,
+      "name_ar": "متابعة الدوام",
+      "name_en": "Attendance Follow-up",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Suivi de présence",
+      "name_zh": "考勤 متابعة"
+    },
+    {
+      "id": 9,
+      "name_ar": "تحسين مستوى",
+      "name_en": "Level Improvement",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Amélioration de niveau",
+      "name_zh": "提升级别"
+    },
+    {
+      "id": 10,
+      "name_ar": "نظام نور",
+      "name_en": "Noor System",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Système Noor",
+      "name_zh": "Noor 系统",
+      "icon": "noor"
+    },
+    {
+      "id": 11,
+      "name_ar": "المراجعة الداخلية",
+      "name_en": "Internal Audit",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Audit interne",
+      "name_zh": "内部审计"
+    },
+    {
+      "id": 12,
+      "name_ar": "التشكيلات الإشرافية",
+      "name_en": "Supervisory Assignments",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Affectations de supervision",
+      "name_zh": "督导任命"
+    },
+    {
+      "id": 13,
+      "name_ar": "الإيفاد والابتعاث",
+      "name_en": "Scholarships & Missions",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Bourses et missions",
+      "name_zh": "派遣与奖学金"
+    },
+    {
+      "id": 14,
+      "name_ar": "برنامج فرص",
+      "name_en": "Furs Program",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Programme Furs",
+      "name_zh": "Furs 项目"
+    },
+    {
+      "id": 15,
+      "name_ar": "ظروف خاصة",
+      "name_en": "Special Circumstances",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Cas particuliers",
+      "name_zh": "特殊情况"
+    },
+    {
+      "id": 16,
+      "name_ar": "التأمينات الاجتماعية",
+      "name_en": "Social Insurance",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Assurance sociale",
+      "name_zh": "社会保险"
+    },
+    {
+      "id": 17,
+      "name_ar": "الرواتب والبدلات",
+      "name_en": "Salaries & Allowances",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Salaires et indemnités",
+      "name_zh": "薪资与补贴"
+    },
+    {
+      "id": 18,
+      "name_ar": "نظام فارس",
+      "name_en": "Fares System",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Système Fares",
+      "name_zh": "Fares 系统",
+      "icon": "faris"
+    },
+    {
+      "id": 19,
+      "name_ar": "الإجازات",
+      "name_en": "Leaves",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Congés",
+      "name_zh": "请假"
+    },
+    {
+      "id": 20,
+      "name_ar": "الشؤون القانونية",
+      "name_en": "Legal Affairs",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Affaires juridiques",
+      "name_zh": "法律事务"
+    },
+    {
+      "id": 21,
+      "name_ar": "الإعارة والنقل",
+      "name_en": "Secondment & Transfer",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Détachement et transfert",
+      "name_zh": "借调与调动"
+    },
+    {
+      "id": 22,
+      "name_ar": "التعيين / عقود",
+      "name_en": "Appointment / Contracts",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Recrutement / contrats",
+      "name_zh": "任用/合同"
+    },
+    {
+      "id": 23,
+      "name_ar": "أخرى..",
+      "name_en": "Other",
+      "type": "walkin",
+      "code_prefix": "T",
+      "kiosk_visible": false,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null,
+      "group": "teacher",
+      "name_fr": "Autre",
+      "name_zh": "其他"
+    }
+  ],
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password": "admin123",
+      "full_name": "Admin",
+      "role": "admin",
+      "is_active": true
+    },
+    {
+      "id": 2,
+      "username": "emp01",
+      "password": "1234",
+      "full_name": "موظف 1",
+      "role": "counter",
+      "is_active": true
+    }
+  ],
+  "counters": [
+    {
+      "id": 1,
+      "name": "كونتر 1",
+      "location": "",
+      "is_active": true,
+      "priority_order": 1
+    },
+    {
+      "id": 2,
+      "name": "كونتر 2",
+      "location": "",
+      "is_active": true,
+      "priority_order": 2
+    },
+    {
+      "id": 3,
+      "name": "كونتر 3",
+      "location": "",
+      "is_active": true,
+      "priority_order": 3
+    },
+    {
+      "id": 4,
+      "name": "كونتر 4",
+      "location": "",
+      "is_active": true,
+      "priority_order": 4
+    },
+    {
+      "id": 5,
+      "name": "كونتر 5",
+      "location": "",
+      "is_active": true,
+      "priority_order": 5
+    },
+    {
+      "id": 6,
+      "name": "كونتر 6",
+      "location": "",
+      "is_active": true,
+      "priority_order": 6
+    },
+    {
+      "id": 7,
+      "name": "كونتر 7",
+      "location": "",
+      "is_active": true,
+      "priority_order": 7
+    },
+    {
+      "id": 8,
+      "name": "كونتر 8",
+      "location": "",
+      "is_active": true,
+      "priority_order": 8
+    },
+    {
+      "id": 9,
+      "name": "كونتر 9",
+      "location": "",
+      "is_active": true,
+      "priority_order": 9
+    },
+    {
+      "id": 10,
+      "name": "كونتر 10",
+      "location": "",
+      "is_active": true,
+      "priority_order": 10
+    }
+  ],
+  "counter_daily": [
+    {
+      "work_date": "2026-01-31",
+      "counter_id": 1,
+      "enabled_today": true
+    },
+    {
+      "work_date": "2026-01-31",
+      "counter_id": 2,
+      "enabled_today": true
+    },
+    {
+      "work_date": "2026-01-31",
+      "counter_id": 3,
+      "enabled_today": true
+    },
+    {
+      "work_date": "2026-01-31",
+      "counter_id": 4,
+      "enabled_today": true
+    },
+    {
+      "work_date": "2026-01-31",
+      "counter_id": 5,
+      "enabled_today": true
+    },
+    {
+      "work_date": "2026-01-31",
+      "counter_id": 6,
+      "enabled_today": true
+    },
+    {
+      "work_date": "2026-01-31",
+      "counter_id": 7,
+      "enabled_today": true
+    },
+    {
+      "work_date": "2026-01-31",
+      "counter_id": 8,
+      "enabled_today": true
+    },
+    {
+      "work_date": "2026-01-31",
+      "counter_id": 9,
+      "enabled_today": true
+    },
+    {
+      "work_date": "2026-01-31",
+      "counter_id": 10,
+      "enabled_today": true
+    }
+  ],
+  "sessions": [],
+  "tickets": [],
+  "ticket_calls": [],
+  "cases": [],
+  "feedback": [],
+  "feedback_windows": [],
+  "sequences": {}
+}

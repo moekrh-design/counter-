@@ -1,0 +1,108 @@
+<div class="ui-container pt-3">
+  <div class="ui-nav" role="navigation" aria-label="القائمة الرئيسية">
+    <div class="ui-brand">
+      <span class="ui-logoDot" aria-hidden="true"></span>
+      <img class="ui-logoImg" alt="الشعار" src="/public/branding/logo.svg" onerror="this.onerror=null;this.src='/public/branding/logo.png';">
+      <div class="ui-brandText">
+        <div class="ui-brandTitle">نظام خدمة المستفيدين</div>
+        <div class="ui-brandSub">تنظيم ذكي • خدمة أسرع • تجربة أرقى</div>
+      </div>
+    </div>
+
+    <div class="ui-links">
+      <% if (user && user.role==='admin') { %>
+        <a class="ui-link" href="/admin">
+          <span aria-hidden="true">🧭</span>
+          <span>لوحة الإدارة</span>
+        </a>
+        <a class="ui-link" href="/admin/branding">
+          <span aria-hidden="true">🎨</span>
+          <span>الهوية</span>
+        </a>
+        <a class="ui-link" href="/admin/reports">
+          <span aria-hidden="true">📊</span>
+          <span>التقارير</span>
+        </a>
+        <a class="ui-link" href="/admin/beneficiaries">
+          <span aria-hidden="true">🗂️</span>
+          <span>سجل المستفيد</span>
+        </a>
+        <a class="ui-link" href="/admin/updates">
+          <span aria-hidden="true">⬆️</span>
+          <span>تحديثات النظام</span>
+        </a>
+      <% } %>
+
+      <% if (user && user.role==='counter') { %>
+        <a class="ui-link" href="/counter/beneficiaries">
+          <span aria-hidden="true">🗂️</span>
+          <span>سجل المستفيد</span>
+        </a>
+      <% } %>
+      <a class="ui-link" href="/kiosk"><span aria-hidden="true">🎫</span><span>شاشة الطلب</span></a>
+      <a class="ui-link" href="/counter/login"><span aria-hidden="true">👤</span><span>دخول الموظف</span></a>
+      <a class="ui-link" href="/display"><span aria-hidden="true">🔊</span><span>شاشة الأرقام</span></a>
+      <a class="ui-link" href="/feedback"><span aria-hidden="true">⭐</span><span>التقييم</span></a>
+    </div>
+
+    <div class="ui-userBox">
+      <% if (user && user.role==='admin') { %>
+        <span class="ui-pill">مدير</span>
+        <a class="ui-btn" href="/help/instructions?role=admin" data-ui-help-open onclick="try{uiHelpOpen(event);return false;}catch(e){}" title="تعليمات الاستخدام">
+          <span aria-hidden="true">ℹ️</span><span>تعليمات</span>
+        </a>
+        <a class="ui-btn ui-btnDanger" href="/admin/logout"><span aria-hidden="true">🚪</span><span>خروج</span></a>
+      <% } else if (user) { %>
+        <span class="ui-pill">موظف</span>
+        <a class="ui-btn" href="/help/instructions?role=counter" data-ui-help-open onclick="try{uiHelpOpen(event);return false;}catch(e){}" title="تعليمات الاستخدام">
+          <span aria-hidden="true">ℹ️</span><span>تعليمات</span>
+        </a>
+        <a class="ui-btn ui-btnDanger" href="/counter/logout"><span aria-hidden="true">🚪</span><span>خروج</span></a>
+      <% } else { %>
+        <span class="ui-pill">زائر</span>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<% if (user && (user.role==='admin' || user.role==='counter')) { %>
+  <!-- Help / Instructions Modal (Arabic) -->
+  <div id="uiHelpModal" class="ui-help-backdrop ui-help-hidden" style="display:none" aria-hidden="true">
+    <div class="ui-help-panel" role="dialog" aria-modal="true" aria-label="تعليمات الاستخدام">
+      <div class="ui-help-head d-flex align-items-start justify-content-between gap-3">
+        <div>
+          <div class="ui-help-title">تعليمات سريعة — <%= (user.role==='admin') ? 'لوحة الإدارة' : 'شاشة الموظف' %></div>
+          <div class="ui-help-sub">ملخص لأبرز النقاط التي قد تحتاجها أثناء العمل داخل النظام.</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="uiHelpPrint()">طباعة التعليمات</button>
+          <button type="button" class="btn btn-sm btn-outline-success" onclick="uiHelpDownloadPdf()">تحميل PDF</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-ui-help-close onclick="uiHelpClose(event)">إغلاق</button>
+        </div>
+      </div>
+      <div class="ui-help-body">
+        <% if (user.role==='counter') { %>
+          <ul class="ui-help-list">
+            <li><b>استدعاء التالي:</b> اضغط <span class="ui-help-kbd">استدعاء التالي</span> لنداء الرقم التالي في قائمة الكونتر.</li>
+            <li><b>بدء الخدمة:</b> بعد ظهور (منادى) اضغط <span class="ui-help-kbd">بدء الخدمة</span> لبدء التعامل مع المستفيد.</li>
+            <li><b>إدارة التذكرة:</b> اختر رقم التذكرة من قائمة <span class="ui-help-kbd">التذكرة</span> لعرض بيانات المستفيد والمرفقات.</li>
+            <li><b>الحفظ تلقائي:</b> حقول (التصنيف/الأولوية/القناة/الملاحظات...) يتم حفظها تلقائيًا أثناء الكتابة.</li>
+            <li><b>حجز لقاء مسؤول:</b> إذا كانت الخدمة حجزًا، اختر <span class="ui-help-kbd">التاريخ</span> ثم <span class="ui-help-kbd">الوقت</span> من الأوقات المتاحة.</li>
+            <li><b>إغلاق التذكرة:</b> اضغط <span class="ui-help-kbd">إغلاق التذكرة</span> لإنهاء الحالة، ولن يتم فتح شاشة التقييم تلقائيًا؛ يمكنك فتحها يدويًا من رابط (التقييم) عند الحاجة.</li>
+            <li><b>رسالة الإغلاق:</b> بعد الإغلاق تظهر رسالة خضراء "تم الإغلاق" ويتم تصفير الحقول تلقائيًا. إذا لم تظهر لأي سبب اضغط <span class="ui-help-kbd">تحديث الآن</span> من رسالة الإغلاق.</li>
+            <li><b>سجل المستفيد:</b> البحث الأفضل يكون برقم الهوية (الأكثر ثباتًا) لضمان تجميع جميع التذاكر تحت ملف واحد.</li>
+          </ul>
+        <% } else { %>
+          <ul class="ui-help-list">
+            <li><b>الإعدادات:</b> عدّل (مدة الراحة/النداء التلقائي/الثيم/إعدادات المواعيد) ثم احفظ من نفس الصفحة.</li>
+            <li><b>الخدمات:</b> فعّل/أخفِ الخدمات التي تظهر في الكشك، وحدد نوع الخدمة (حضور/موعد).</li>
+            <li><b>الهوية:</b> ارفع شعار الجهة وتأكد من بيانات الاسم العربي/الإنجليزي لتنعكس على الكشك والتقارير.</li>
+            <li><b>التقارير:</b> راقب عدد التذاكر، متوسط الانتظار، متوسط الخدمة، ونِسَب الإغلاق والتقييم.</li>
+            <li><b>سجل المستفيد:</b> اعتمد رقم الهوية كمفتاح أساسي لربط جميع تذاكر المستفيد في ملف واحد.</li>
+            <li><b>التحديثات:</b> استخدم صفحة التحديثات لرفع نسخة جديدة عند الحاجة مع الاحتفاظ بنسخة احتياطية من قاعدة البيانات.</li>
+          </ul>
+        <% } %>
+      </div>
+    </div>
+  </div>
+<% } %>

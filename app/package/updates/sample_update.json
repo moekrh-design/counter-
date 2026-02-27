@@ -1,0 +1,22 @@
+{
+  "note": "مثال: إضافة خدمة جديدة وتعديل بعض الإعدادات",
+  "settings": {
+    "rest_seconds_default": 30,
+    "appointments": {"weekday": 4, "slot_minutes": 15}
+  },
+  "services": [
+    {
+      "name_ar": "خدمة جديدة",
+      "name_en": "New Service",
+      "type": "walkin",
+      "code_prefix": "N",
+      "kiosk_visible": true,
+      "is_active": true,
+      "availability_mode": "always",
+      "availability_weekday": null
+    }
+  ],
+  "counters": [
+    {"id": 11, "name": "كونتر 11", "is_active": true}
+  ]
+}

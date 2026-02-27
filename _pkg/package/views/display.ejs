@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>شاشة النداء</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/public/app.css" rel="stylesheet">
+  <link href="/public/moe-ui.css" rel="stylesheet">
+  <script src="/public/app.js"></script>
+</head>
+<body class="display-body" data-theme="<%= (ui && ui.theme) ? ui.theme : 'dark' %>">
+
+  <!-- School bell / chime audio element -->
+  <audio id="schoolBell" preload="auto"></audio>
+<!-- Audio unlock overlay (some browsers require a user gesture once) -->
+  <div id="audioUnlock" class="audio-unlock d-none">
+    <div class="audio-unlock-card">
+      <div class="fw-bold" style="font-size:28px;">تفعيل الصوت</div>
+      <div class="muted mt-2" style="font-size:18px;">اضغط مرة واحدة لتفعيل الجرس والنداء.</div>
+      <button id="audioUnlockBtn" class="btn btn-primary btn-lg mt-3" onclick="enableAudioNow()">تفعيل</button>
+    </div>
+  </div>
+  <div class="display-shell">
+    <header class="display-header">
+        <div class="d-flex align-items-center gap-3">
+          <div class="moe-badge">MOE</div>
+          <div>
+            <div class="display-title"><%= (branding && branding.org_unit_ar) ? branding.org_unit_ar : 'شاشة النداء' %></div>
+            <div class="display-subtitle">الرجاء التوجه إلى الكونتر عند ظهور رقمك</div>
+          </div>
+        </div>
+      <div class="d-flex align-items-center gap-2">
+        <div class="muted" id="clock"></div>
+        <button id="soundToggleBtn" class="btn btn-sm btn-outline-light sound-toggle" onclick="enableAudioNow()">تفعيل الصوت</button>
+      </div>
+      <div id="soundDiag" class="sound-diag" aria-hidden="true"></div>
+    </header>
+
+    <main class="display-main">
+      <div id="board" class="display-grid"></div>
+
+      <div class="display-recent">
+        <div class="d-flex align-items-center justify-content-between">
+          <div class="fw-bold">آخر النداءات</div>
+          <div class="muted">تحديث كل ثانية</div>
+        </div>
+        <div class="table-responsive mt-2">
+          <table class="table table-sm table-striped">
+            <thead><tr><th>الرقم</th><th>الكونتر</th><th>الوقت</th></tr></thead>
+            <tbody id="recent"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+  function tickClock(){
+    const el = document.getElementById('clock');
+    if(!el) return;
+    const d = new Date();
+    el.textContent = d.toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  }
+  setInterval(tickClock, 1000); tickClock();
+
+  let lastCallId = 0;
+  let uiSound = <%- JSON.stringify((ui && ui.sound) ? ui.sound : null) %>;
+
+  let _audioCtx = null;
+  // Chime / bell audio element (offline)
+  // Using a real <audio> element improves compatibility with browser autoplay policies.
+  const chimeAudio = document.getElementById('schoolBell') || new Audio();
+  chimeAudio.preload = 'auto';
+  if (!chimeAudio.src || chimeAudio.src === window.location.href){
+    chimeAudio.src = '/public/sounds/alarm.mp3';
+  }
+
+  // Voice pack (external recordings)
+  async function playRecording(src, volume){
+    try{
+      const ok = await ensureAudioEnabled();
+      if (!ok) return false;
+      const v = (typeof volume === 'number') ? volume : 1;
+      return await new Promise((resolve)=>{
+        const a = new Audio(src);
+        a.preload = 'auto';
+        a.volume = Math.max(0, Math.min(1, v));
+        let done = false;
+        const finish = (r)=>{ if(done) return; done=true; try{a.pause();}catch(e){} resolve(!!r); };
+        a.onended = ()=> finish(true);
+        a.onerror = ()=> finish(false);
+        // Safety timeout (network/cache edge cases)
+        setTimeout(()=>{ if(!done) finish(false); }, 6000);
+        a.play().catch(()=> finish(false));
+      });
+    }catch(e){ return false; }
+  }
+
+  // === Simple helpers (requested snippet) ===
+  function speak(text) {
+    // التأكد من أن المتصفح يدعم خاصية النطق
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(String(text || ''));
+      // ضبط الإعدادات
+      utterance.lang = 'ar-SA';
+      utterance.pitch = 1;
+      utterance.rate = 1;
+      window.speechSynthesis.speak(utterance);
+    } else {
+      console.error("متصفحك لا يدعم خاصية المناداة الصوتية.");
+    }
+  }
+
+  async function playBell() {
+    const bell = document.getElementById('schoolBell') || chimeAudio;
+    if (bell) {
+      bell.currentTime = 0; // البدء من البداية
+      try {
+        await bell.play();
+        return true;
+      } catch (error) {
+        console.log("فشل التشغيل: قد يتطلب المتصفح تفاعل المستخدم أولاً.");
+        return false;
+      }
+    }
+    return false;
+  }
+
+  // Extract digits from a string.
+  // Supports ASCII (0-9) and Arabic-Indic digits (٠-٩ / ۰-۹).
+  function extractDigits(str){
+    const s = String(str||'');
+    const normalized = s
+      .replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+      .replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
+    const m = normalized.match(/[0-9]+/g);
+    return m ? m.join('') : '';
+  }
+
+  // Extract first Latin letter used as service prefix (e.g., A in A-012).
+  function extractPrefixLetter(str){
+    const s = String(str||'');
+    const m = s.match(/[A-Za-z]/);
+    return m ? m[0].toUpperCase() : '';
+  }
+
+  function buildVoicePackSequence(lang, ticket, counter){
+    const tDigits = extractDigits(ticket);
+    const tPrefix = extractPrefixLetter(ticket);
+    const cDigits = extractDigits(counter);
+    if (!tDigits || !cDigits) return null;
+
+    if (lang === 'ar'){
+      const base = '/public/voicepack/ar';
+      const seq = [
+        `${base}/words/number.mp3`,
+        ...(tPrefix ? [{url:`${base}/letters/${tPrefix}.mp3`, optional:true}] : []),
+        ...tDigits.split('').map(d=> `${base}/digits/${d}.mp3`),
+        `${base}/words/please_go_to.mp3`,
+        `${base}/words/counter.mp3`,
+        ...cDigits.split('').map(d=> `${base}/digits/${d}.mp3`)
+      ];
+      return seq;
+    }
+    if (lang === 'en'){
+      const base = '/public/voicepack/en';
+      const seq = [
+        `${base}/words/ticket.mp3`,
+        ...(tPrefix ? [{url:`${base}/letters/${tPrefix}.mp3`, optional:true}] : []),
+        ...tDigits.split('').map(d=> `${base}/digits/${d}.mp3`),
+        `${base}/words/please_go_to.mp3`,
+        `${base}/words/counter.mp3`,
+        ...cDigits.split('').map(d=> `${base}/digits/${d}.mp3`)
+      ];
+      return seq;
+    }
+    return null;
+  }
+
+  // Play external voice pack per-language.
+  // Returns which languages were successfully spoken via recordings.
+  async function speakViaVoicePack(ticket, counter){
+    const s = uiSound || {};
+    const result = { any:false, ar:false, en:false };
+
+    const blocks = [];
+    if (s.speak_ar){
+      const arSeq = buildVoicePackSequence('ar', ticket, counter);
+      if (arSeq) blocks.push({lang:'ar', seq: arSeq});
+    }
+    if (s.speak_en){
+      const enSeq = buildVoicePackSequence('en', ticket, counter);
+      if (enSeq) blocks.push({lang:'en', seq: enSeq});
+    }
+    if (!blocks.length) return result;
+
+    // play sequences in order. If a required file is missing for a language,
+    // mark only that language as failed and continue to the next language.
+    for (const block of blocks){
+      let okLang = true;
+      for (const item of block.seq){
+        const url = (typeof item === 'string') ? item : item?.url;
+        const optional = (typeof item === 'object' && item) ? !!item.optional : false;
+        if (!url) continue;
+        const ok = await playRecording(url, 1);
+        if (!ok && !optional){
+          okLang = false;
+          break;
+        }
+      }
+      if (okLang){
+        result.any = true;
+        if (block.lang === 'ar') result.ar = true;
+        if (block.lang === 'en') result.en = true;
+      }
+    }
+    return result;
+  }
+  function setChimeSource(){
+    try{
+      const s = (uiSound && uiSound.chime_style) ? String(uiSound.chime_style) : 'alarm';
+      const style = (s==='bell' || s==='airport' || s==='alarm') ? s : 'alarm';
+      const src = (style==='bell') ? '/public/sounds/bell.wav'
+        : (style==='airport') ? '/public/sounds/airport.wav'
+        : '/public/sounds/alarm.mp3';
+      if (chimeAudio.src.indexOf(src) === -1) chimeAudio.src = src;
+      const v = (uiSound && typeof uiSound.chime_volume === 'number') ? uiSound.chime_volume : 0.85;
+      chimeAudio.volume = Math.max(0, Math.min(1, Number(v)));
+    }catch(e){}
+  }
+  setChimeSource();
+  function getAudioCtx(){
+    if (_audioCtx) return _audioCtx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    _audioCtx = new AC();
+    return _audioCtx;
+  }
+  async function ensureAudioEnabled(){
+    const ctx = getAudioCtx();
+    if (!ctx) return true;
+    if (ctx.state === 'running') return true;
+    try{ await ctx.resume(); }catch(e){}
+    if (ctx.state === 'running') return true;
+    // Need a gesture
+    document.getElementById('audioUnlock')?.classList.remove('d-none');
+    return false;
+  }
+  async function enableAudioNow(){
+    localStorage.setItem('audio_unlocked','1');
+    document.getElementById('audioUnlock')?.classList.add('d-none');
+    await ensureAudioEnabled();
+
+    // Try to unlock SpeechSynthesis (some browsers require an explicit resume)
+    try{
+      if (window.speechSynthesis){
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.resume();
+      }
+    }catch(e){}
+    // Small silent beep to fully unlock
+    try{
+      const ctx = getAudioCtx();
+      if(!ctx) return;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      g.gain.value = 0.001;
+      o.connect(g); g.connect(ctx.destination);
+      o.start(); o.stop(ctx.currentTime + 0.03);
+    }catch(e){}
+
+    // Try to unlock HTMLAudio playback as well (some browsers gate it separately)
+    try{
+      const v = chimeAudio.volume;
+      chimeAudio.volume = 0.001;
+      chimeAudio.currentTime = 0;
+      await chimeAudio.play();
+      chimeAudio.pause();
+      chimeAudio.currentTime = 0;
+      chimeAudio.volume = v;
+    }catch(e){}
+
+    // Re-announce latest call (if any) after unlocking.
+    try{
+      const last = window.__lastAnnounce;
+      if (last && last.ticket && (Date.now() - (last.ts||0) < 30000)){
+        setTimeout(()=> announce(last.ticket, last.counter), 200);
+      }
+    }catch(e){}
+  }
+
+  async function playChime(){
+    try{
+      const ok = await ensureAudioEnabled();
+      if (!ok) return;
+      setChimeSource();
+      // Primary: real audio file (airport/bell). Fallback: WebAudio synth.
+      try{
+        const okFile = await playBell();
+        if (okFile) return;
+      }catch(e){ /* fallback below */ }
+
+      const ctx = getAudioCtx();
+      if (!ctx) return;
+
+      const g = ctx.createGain();
+      g.gain.value = 0.18;
+      g.connect(ctx.destination);
+
+      const style = (uiSound && uiSound.chime_style==='bell') ? 'bell' : 'airport';
+
+      if (style === 'airport'){
+        // "ding-dong" airport-like
+        const seq = [
+          {f: 988, t: 0.00, d: 0.22},
+          {f: 784, t: 0.34, d: 0.22},
+        ];
+        seq.forEach(s=>{
+          const o = ctx.createOscillator();
+          o.type = 'sine';
+          o.frequency.value = s.f;
+          const gg = ctx.createGain();
+          gg.gain.setValueAtTime(0.0001, ctx.currentTime + s.t);
+          gg.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + s.t + 0.01);
+          gg.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + s.t + s.d);
+          o.connect(gg); gg.connect(g);
+          o.start(ctx.currentTime + s.t);
+          o.stop(ctx.currentTime + s.t + s.d + 0.02);
+        });
+      }else{
+        // Simple triple chime fallback
+        const freqs = [880, 1175, 880];
+        freqs.forEach((f, idx)=>{
+          const o = ctx.createOscillator();
+          o.type = 'sine';
+          o.frequency.value = f;
+          o.connect(g);
+          const t0 = ctx.currentTime + idx*0.18;
+          o.start(t0);
+          o.stop(t0 + 0.14);
+        });
+      }
+      setTimeout(()=>{ try{g.disconnect();}catch(e){} }, 1200);
+    }catch(e){ /* ignore */ }
+  }
+
+  function pickVoice(lang, gender){
+    try{
+      if(!window.speechSynthesis) return null;
+      const voices = window.speechSynthesis.getVoices() || [];
+      if(!voices.length) return null;
+      const langKey = String(lang||'').toLowerCase().split('-')[0];
+      let list = voices.filter(v => (v.lang||'').toLowerCase().startsWith(langKey));
+      if(!list.length) list = voices.filter(v => (v.lang||'').toLowerCase().includes(langKey));
+      if(!list.length) list = voices;
+
+      const want = String(gender||'auto').toLowerCase();
+      if(want==='male' || want==='female'){
+        const femaleRe = /(female|woman|zira|susan|victoria|karen|samantha|amy|joanna|ivy|emma|olivia|ava)/i;
+        const maleRe   = /(male|man|david|mark|thomas|daniel|alex|fred|brian|matthew|liam|noah|james)/i;
+        const re = (want==='female') ? femaleRe : maleRe;
+        const filtered = list.filter(v => re.test(v.name||'') || re.test(v.voiceURI||''));
+        if(filtered.length) return filtered[0];
+      }
+      return list[0];
+    }catch(e){ return null; }
+  }
+
+  let _voicesLoaded = false;
+  function loadVoices(){
+    try{
+      if(!window.speechSynthesis) return;
+      const v = window.speechSynthesis.getVoices();
+      if (v && v.length) _voicesLoaded = true;
+    }catch(e){}
+  }
+  loadVoices();
+  if (window.speechSynthesis){
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }
+
+  async function ensureVoices(lang){
+    try{
+      if(!window.speechSynthesis) return;
+      // Give the browser a moment to load voices
+      for (let i=0;i<20;i++){
+        const v = window.speechSynthesis.getVoices();
+        if (v && v.length) { _voicesLoaded = true; return; }
+        await new Promise(r=>setTimeout(r, 100));
+      }
+    }catch(e){}
+  }
+
+  function updateSoundDiag(){
+    try{
+      const el = document.getElementById('soundDiag');
+      if (!el) return;
+      const audioUnlocked = (localStorage.getItem('audio_unlocked') === '1');
+      const btn = document.getElementById('soundToggleBtn');
+      const hasSS = !!window.speechSynthesis;
+      const v = hasSS ? (window.speechSynthesis.getVoices() || []) : [];
+      const ar = v.filter(x=>String(x.lang||'').toLowerCase().startsWith('ar')).length;
+      const en = v.filter(x=>String(x.lang||'').toLowerCase().startsWith('en')).length;
+      el.textContent = `الصوت: ${audioUnlocked ? 'مُفَعَّل' : 'غير مفعّل'} • أصوات: ${v.length} • عربي: ${ar} • English: ${en}`;
+      if (btn){
+        btn.textContent = audioUnlocked ? 'الصوت مُفَعَّل' : 'تفعيل الصوت';
+        btn.classList.remove('btn-outline-light','btn-success');
+        btn.classList.add(audioUnlocked ? 'btn-success' : 'btn-outline-light');
+      }
+    }catch(e){}
+  }
+  setInterval(updateSoundDiag, 5000);
+  setTimeout(updateSoundDiag, 500);
+
+  // Autoplay policies: most browsers require a user gesture before any audio can play.
+  // Show the unlock overlay by default until the user enables sound (persisted in localStorage).
+  (function initAudioUnlockUI(){
+    try{
+      const unlocked = (localStorage.getItem('audio_unlocked') === '1');
+      if (!unlocked){
+        document.getElementById('audioUnlock')?.classList.remove('d-none');
+      }
+      // Also allow a single tap/click anywhere to unlock quickly.
+      const once = async ()=>{
+        try{
+          if (localStorage.getItem('audio_unlocked') === '1') return;
+          await enableAudioNow();
+        }catch(e){}
+        document.removeEventListener('click', once);
+        document.removeEventListener('touchstart', once);
+      };
+      document.addEventListener('click', once, {passive:true});
+      document.addEventListener('touchstart', once, {passive:true});
+    }catch(e){}
+  })();
+
+  function speakQueue(items){
+    try{
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const list = Array.isArray(items) ? items.filter(x=>x && x.text) : [];
+      if (!list.length) return;
+
+      let idx = 0;
+      const speakOne = async ()=>{
+        const it = list[idx];
+        if (!it) return;
+        // Ensure audio is enabled (gesture) and voices are loaded
+        const ok = await ensureAudioEnabled();
+        if (!ok) return;
+        await ensureVoices(it.lang);
+
+        const u = new SpeechSynthesisUtterance(it.text);
+        if (it.lang) u.lang = it.lang;
+        const v = pickVoice(it.lang, it.gender);
+        if (v) u.voice = v;
+        u.rate = 1;
+        u.pitch = 1;
+
+        u.onend = ()=>{
+          idx++;
+          if (idx < list.length) speakOne();
+        };
+        u.onerror = ()=>{
+          idx++;
+          if (idx < list.length) speakOne();
+        };
+        window.speechSynthesis.speak(u);
+      };
+      speakOne();
+    }catch(e){}
+  }
+
+  function renderPhrase(tpl, ticket, counter){
+    return String(tpl||'').replaceAll('{ticket}', ticket).replaceAll('{counter}', counter);
+  }
+
+  function announce(ticket, counter){
+    const s = uiSound;
+    if(!s || !s.enabled) return;
+    window.__lastAnnounce = { ticket, counter, ts: Date.now() };
+
+    if(s.chime) playChime();
+
+    // If configured to use external recordings, try voice pack first
+    if (String(s.mode||'tts') === 'recordings'){
+      const delay = s.chime ? 250 : 0;
+      setTimeout(async ()=>{
+        const played = await speakViaVoicePack(ticket, counter);
+
+        // If recordings are enabled and available, do NOT play browser TTS for that same language.
+        // If a language recording is missing, fall back ONLY for that missing language.
+        const items = [];
+        if (s.speak_ar && !played.ar){
+          const ar = renderPhrase(s.phrase_ar || 'الرقم {ticket}، تفضل إلى {counter}', ticket, counter);
+          items.push({ text: ar, lang: 'ar-SA', gender: s.voice_gender_ar || 'auto' });
+        }
+        if (s.speak_en && !played.en){
+          const en = renderPhrase(s.phrase_en || 'Ticket {ticket}, please go to {counter}', ticket, counter);
+          items.push({ text: en, lang: 'en-US', gender: s.voice_gender_en || 'auto' });
+        }
+        if (items.length) speakQueue(items);
+      }, delay);
+      return;
+    }
+
+    const items = [];
+    if (s.speak_ar){
+      const ar = renderPhrase(s.phrase_ar || 'الرقم {ticket}، تفضل إلى {counter}', ticket, counter);
+      items.push({ text: ar, lang: 'ar-SA', gender: s.voice_gender_ar || 'auto' });
+    }
+    if (s.speak_en){
+      const en = renderPhrase(s.phrase_en || 'Ticket {ticket}, please go to {counter}', ticket, counter);
+      items.push({ text: en, lang: 'en-US', gender: s.voice_gender_en || 'auto' });
+    }
+    if (!items.length) return;
+
+    // Give the chime a short head-start for clarity
+    const delay = s.chime ? 250 : 0;
+    setTimeout(()=> speakQueue(items), delay);
+  }
+
+  async function refresh(){
+    const res = await fetch('/api/display/board');
+    const data = await res.json();
+    if(!data.ok) return;
+
+    if(data.ui && data.ui.sound){ uiSound = data.ui.sound; setChimeSource(); }
+
+    const board = document.getElementById('board');
+    board.innerHTML = '';
+    data.counters.forEach(c=>{
+      const label = (c.current && c.current.state==='IN_SERVICE') ? 'قيد الخدمة' : (c.current ? 'يُرجى التوجه' : 'بانتظار');
+      const cur = c.current ? `<div class="display-ticket">${c.current.ticket_code}</div><div class="muted">${label}</div>` : `<div class="display-ticket">—</div><div class="muted">بانتظار</div>`;
+      const el = document.createElement('div');
+      el.className = 'display-tile';
+      el.innerHTML = `<div class="display-counter">${c.name}</div><div class="display-center">${cur}</div>`;
+      board.appendChild(el);
+    });
+
+    const recent = document.getElementById('recent');
+    recent.innerHTML = '';
+    data.recentCalls.forEach(r=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="fw-bold">${r.ticket_code}</td><td>${r.counter_name}</td><td class="muted">${new Date(r.called_at).toLocaleTimeString()}</td>`;
+      recent.appendChild(tr);
+    });
+
+    // announce newest call once
+    if (data.recentCalls && data.recentCalls.length){
+      const top = data.recentCalls[0];
+      const callId = Number(top.id || 0);
+      if(callId && callId > lastCallId){
+        lastCallId = callId;
+        announce(top.ticket_code, top.counter_name);
+      }
+    }
+  }
+  setInterval(refresh, 1000);
+  refresh();
+
+  // If the browser required a user gesture, allow re-announce after enabling audio.
+  window.addEventListener('click', async (e)=>{
+    const t = e?.target;
+    if (!t) return;
+    if (t.id === 'audioUnlockBtn'){
+      await enableAudioNow();
+      const last = window.__lastAnnounce;
+      if(last && (Date.now()-last.ts) < 30000){
+        setTimeout(()=> announce(last.ticket, last.counter), 250);
+      }
+    }
+  }, {passive:true});
+  </script>
+</body>
+</html>
