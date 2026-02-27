@@ -11,7 +11,19 @@ try { ArabicReshaper = require('arabic-persian-reshaper'); } catch(e) { ArabicRe
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+// === DEBUG LOGS (Render) ===
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED_REJECTION:', reason && reason.stack ? reason.stack : reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT_EXCEPTION:', err && err.stack ? err.stack : err);
+});
 
+// Log every request
+app.use((req, res, next) => {
+  console.log('REQ', req.method, req.url);
+  next();
+});
 const upload = multer({ dest: path.join(__dirname, 'data', 'uploads') });
 
 // Branding uploads (logo)
