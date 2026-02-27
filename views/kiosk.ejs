@@ -1,0 +1,1104 @@
+<!doctype html>
+<html lang="<%= lang %>" dir="<%= (lang==='ar') ? 'rtl' : 'ltr' %>">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0B2530">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title><%= lang==='en' ? 'Beneficiary Kiosk' : (lang==='fr' ? 'Borne des bénéficiaires' : (lang==='zh' ? '服务自助终端' : 'كشك خدمات المستفيدين')) %></title>
+  <link rel="manifest" href="/public/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/public/icon-192.png">
+  <!-- Load both Bootstrap LTR + RTL and switch dynamically based on language -->
+  <link id="bsLtr" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link id="bsRtl" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet" disabled>
+  <link href="/public/app.css" rel="stylesheet">
+  <link href="/public/moe-ui.css" rel="stylesheet">
+
+  <style>
+</style>
+</head>
+
+<body class="kiosk-body kiosk-full kiosk-scroll" data-theme="<%= (ui && ui.theme) ? ui.theme : 'dark' %>">
+  <div id="kioskToast" class="ui-toast" role="status" aria-live="polite" style="display:none"></div>
+  <div class="kiosk-shell kiosk-shell-center">
+    <header class="kiosk-header kiosk-header-slim kiosk-brand-header">
+      <div class="kiosk-brand">
+        <div class="kiosk-brand-logo">
+          <% if (branding && branding.logo_path) { %>
+            <img alt="logo" src="<%= branding.logo_path %>" class="kiosk-logo-img" />
+          <% } else { %>
+            <div class="moe-badge">MOE</div>
+          <% } %>
+        </div>
+        <div class="kiosk-brand-text">
+          <div class="kiosk-title" id="hdrTitle"
+               data-ar="<%= (branding.org_name_ar || 'وزارة التعليم') %>"
+               data-en="<%= (branding.org_name_en || 'Ministry of Education') %>"
+               data-fr="<%= (branding.org_name_fr || branding.org_name_en || 'Ministry of Education') %>"
+               data-zh="<%= (branding.org_name_zh || branding.org_name_en || 'Ministry of Education') %>">
+            <%= (branding.org_name_ar || 'وزارة التعليم') %>
+          </div>
+          <div class="kiosk-subtitle" id="hdrSub"
+               data-ar="اتبع الخطوات لإصدار رقم"
+               data-en="Follow the steps to get a ticket"
+               data-fr="Suivez les étapes pour obtenir un ticket"
+               data-zh="请按步骤取号">
+            اتبع الخطوات لإصدار رقم
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-outline-moe btn-sm kiosk-fs-btn" type="button" onclick="toggleFullscreen()" id="btnFs" aria-label="fullscreen">⛶</button>
+    </header>
+
+    <main class="kiosk-stage">
+      <form id="kioskForm" class="w-100" method="post" action="/kiosk/issue" autocomplete="off">
+        <input type="hidden" name="service_id" id="service_id">
+        <input type="hidden" name="lang" id="lang" value="<%= lang %>">
+        <input type="hidden" name="student_track" id="student_track" value="">
+
+        <!-- Step 1: Language -->
+        <section class="kiosk-card-hero kiosk-step" data-step="1">
+          <div class="kiosk-hero-title" id="t1">اختر اللغة</div>
+          <div class="kiosk-hero-sub" id="s1">Choose your language</div>
+          <% const langsEnabled = (ui && ui.kiosk_languages) ? ui.kiosk_languages : ['ar','en','zh','fr']; %>
+          <!-- Keep Arabic always top-right by forcing RTL flow in the language grid -->
+          <div class="kiosk-lang-grid mt-4" style="direction: rtl;">
+            <% if (langsEnabled.includes('ar')) { %>
+            <button type="button" class="btn btn-moe kiosk-lang-btn" onclick="setLang('ar')">
+              <div class="kiosk-tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" stroke-width="1.8"/>
+                  <path d="M2 12h20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M12 2c2.8 2.6 4.5 6.1 4.5 10s-1.7 7.4-4.5 10c-2.8-2.6-4.5-6.1-4.5-10S9.2 4.6 12 2Z" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+              </div>
+              <div>العربية</div>
+            </button>
+          <% } %>
+          <% if (langsEnabled.includes('en')) { %>
+            <button type="button" class="btn btn-outline-moe kiosk-lang-btn" onclick="setLang('en')">
+              <div class="kiosk-tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" stroke-width="1.8"/>
+                  <path d="M2 12h20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M12 2c2.8 2.6 4.5 6.1 4.5 10s-1.7 7.4-4.5 10c-2.8-2.6-4.5-6.1-4.5-10S9.2 4.6 12 2Z" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+              </div>
+              <div>English</div>
+            </button>
+          <% } %>
+
+          <% if (langsEnabled.includes('zh')) { %>
+            <button type="button" class="btn btn-outline-moe kiosk-lang-btn" onclick="setLang('zh')">
+              <div class="kiosk-tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" stroke-width="1.8"/>
+                  <path d="M2 12h20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M12 2c2.8 2.6 4.5 6.1 4.5 10s-1.7 7.4-4.5 10c-2.8-2.6-4.5-6.1-4.5-10S9.2 4.6 12 2Z" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+              </div>
+              <div>中文</div>
+            </button>
+	          <% } %>
+
+	          <% if (langsEnabled.includes('fr')) { %>
+	            <button type="button" class="btn btn-outline-moe kiosk-lang-btn" onclick="setLang('fr')">
+	              <div class="kiosk-tile-icon" aria-hidden="true">
+	                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+	                  <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" stroke-width="1.8"/>
+	                  <path d="M2 12h20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+	                  <path d="M12 2c2.8 2.6 4.5 6.1 4.5 10s-1.7 7.4-4.5 10c-2.8-2.6-4.5-6.1-4.5-10S9.2 4.6 12 2Z" stroke="currentColor" stroke-width="1.8"/>
+	                </svg>
+	              </div>
+	              <div>Français</div>
+	            </button>
+	          <% } %>
+
+          </div>
+          <div class="muted mt-4" style="font-size:1rem" id="fsHint" <%=(ui && ui.kiosk_show_fullscreen_hint) ? '' : 'style="display:none"'%> >
+            <span id="fsTxt">لأفضل تجربة على شاشة اللمس: اضغط زر ⛶ لملء الشاشة.</span>
+          </div>
+        </section>
+
+        <!-- Step 2: Beneficiary type -->
+        <section class="kiosk-card-hero kiosk-step" data-step="2" style="display:none">
+          <div class="kiosk-hero-title" id="t2" data-html="1">اختر فئة المستفيد <span class="text-danger">*</span></div>
+          <div class="kiosk-hero-sub" id="s2">Select your category</div>
+
+          <input type="hidden" name="beneficiary_type" id="beneficiary_type">
+
+          <div class="kiosk-choice-grid mt-4">
+            <!-- Combined: Parent / Student -->
+            <button type="button" class="kiosk-choice" onclick="pickBenef('parent_student')">
+              <div class="kiosk-tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 3 2 8l10 5 10-5-10-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                  <path d="M6 10v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M8.5 12.5c.6-1.5 2-2.5 3.5-2.5s2.9 1 3.5 2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <span class="kiosk-choice-title" data-ar="ولي أمر / طالب" data-en="Parent / Student" data-fr="Parent / Étudiant" data-zh="家长/学生">ولي أمر / طالب</span>
+            </button>
+            <button type="button" class="kiosk-choice" onclick="pickBenef('teacher')">
+              <div class="kiosk-tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4 6h10a4 4 0 0 1 4 4v8H8a4 4 0 0 0-4 4V6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                  <path d="M8 18V6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <span class="kiosk-choice-title" data-ar="معلم" data-en="Teacher" data-fr="Enseignant" data-zh="教师">معلم</span>
+            </button>
+            <button type="button" class="kiosk-choice" onclick="pickBenef('staff')">
+              <div class="kiosk-tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4 7h16v12H4V7Z" stroke="currentColor" stroke-width="1.8"/>
+                  <path d="M8 7V5h8v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M4 12h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <span class="kiosk-choice-title" data-ar="إداري" data-en="Administrative" data-fr="Administratif" data-zh="行政">إداري</span>
+            </button>
+            <button type="button" class="kiosk-choice" onclick="pickBenef('investor')">
+              <div class="kiosk-tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2v20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M17 7.5c0-2-2.2-3.5-5-3.5S7 5.5 7 7.5 9.2 11 12 11s5 1.5 5 3.5S14.8 18 12 18s-5-1.5-5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <span class="kiosk-choice-title" data-ar="مستثمر" data-en="Investor" data-fr="Investisseur" data-zh="投资者">مستثمر</span>
+            </button>
+            <button type="button" class="kiosk-choice" onclick="pickBenef('edu_researcher')">
+              <div class="kiosk-tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4 6h12a4 4 0 0 1 4 4v8H8a4 4 0 0 0-4 4V6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                  <path d="M8 18V6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M15.5 14.5l3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <circle cx="14" cy="13" r="2" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+              </div>
+              <span class="kiosk-choice-title" data-ar="باحث تعليمي" data-en="Educational researcher" data-fr="Chercheur en éducation" data-zh="教育研究者">باحث تعليمي</span>
+            </button>
+            <button type="button" class="kiosk-choice" onclick="pickBenef('other')">
+              <div class="kiosk-tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 12h.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                  <path d="M19 12h.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                  <path d="M5 12h.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <span class="kiosk-choice-title" data-ar="أخرى" data-en="Other" data-fr="Autre" data-zh="其他">أخرى</span>
+            </button>
+
+          </div>
+
+          <div class="kiosk-nav mt-4">
+            <button type="button" class="btn btn-outline-moe btn-lg" onclick="prevStep()" id="back2">رجوع</button>
+          </div>
+        </section>
+
+
+
+        <!-- Step 3: Student track (Parent/Student only) -->
+        <section class="kiosk-card-hero kiosk-step" data-step="3" style="display:none">
+          <div class="kiosk-hero-title" id="t3" data-html="1">اختر نوع الطالب <span class="text-danger">*</span></div>
+          <div class="kiosk-hero-sub" id="s3">اختر المسار للمتابعة</div>
+
+          <div id="studentTrackChooser" class="mt-4">
+            <div class="kiosk-choice-grid">
+              <button type="button" class="kiosk-choice" onclick="pickStudent('general')">
+                <div class="kiosk-tile-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 3 2 8l10 5 10-5-10-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                    <path d="M6 10v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <span class="kiosk-choice-title" data-ar="طالب تعليم عام" data-en="General education" data-fr="Enseignement général" data-zh="普通教育">طالب تعليم عام</span>
+              </button>
+
+              <% if (student_university && student_university.enabled) { %>
+              <button type="button" class="kiosk-choice" onclick="pickStudent('university')">
+                <div class="kiosk-tile-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2 2 7l10 5 10-5-10-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                    <path d="M6 10v6c0 2 2.7 4 6 4s6-2 6-4v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <span class="kiosk-choice-title" data-ar="طالب تعليم جامعي" data-en="University student" data-fr="Étudiant universitaire" data-zh="大学生">طالب تعليم جامعي</span>
+              </button>
+              <% } %>
+            </div>
+          </div>
+
+          <!-- University message view (same step) -->
+          <div id="studentUniBox" class="mt-4" style="display:none">
+            <div class="kiosk-services-title" id="uniTitle" data-ar="عزيزنا المستفيد،" data-en="Dear beneficiary," data-fr="Cher bénéficiaire," data-zh="尊敬的受益人：">عزيزنا المستفيد،</div>
+            <div class="mt-2" id="uniMsg" data-html="1"
+              data-ar="<%= (student_university && student_university.message_ar) ? student_university.message_ar.replace(/\n/g,'<br>') : 'نفيدكم بأن خدمات الطلاب الجامعيين في مركز خدمات الابتعاث بحي المُعذَر طريق التخصصي، يمكنكم الوصول إليه عن طريق الرمز أدناه' %>"
+              data-en="<%= (student_university && student_university.message_en) ? student_university.message_en.replace(/\n/g,'<br>') : 'University students services are available at the Scholarships Services Center. Scan the code below to access.' %>"
+              data-fr="<%= (student_university && student_university.message_fr) ? student_university.message_fr.replace(/\n/g,'<br>') : 'Les services des étudiants universitaires sont disponibles au centre des bourses. Scannez le code ci-dessous.' %>"
+              data-zh="<%= (student_university && student_university.message_zh) ? student_university.message_zh.replace(/\n/g,'<br>') : '大学生服务请前往奖学金服务中心。请扫描下方二维码。' %>">
+              <%= (student_university && student_university.message_ar) ? student_university.message_ar : 'نفيدكم بأن خدمات الطلاب الجامعيين في مركز خدمات الابتعاث بحي المُعذَر طريق التخصصي، يمكنكم الوصول إليه عن طريق الرمز أدناه' %>
+            </div>
+
+            <% const qrText = (student_university && student_university.qr_text) ? student_university.qr_text : ''; %>
+            <% const qrImg = (student_university && student_university.qr_image_path) ? student_university.qr_image_path : ''; %>
+            <div class="d-flex justify-content-center mt-4">
+              <% if (qrImg) { %>
+                <img alt="QR" class="kiosk-qr" src="<%= qrImg %>" />
+              <% } else if (qrText) { %>
+                <img alt="QR" class="kiosk-qr" src="/api/qr.png?text=<%= encodeURIComponent(qrText) %>" />
+              <% } else { %>
+                <img alt="QR" class="kiosk-qr" src="/public/qr/student_university_default.png" />
+              <% } %>
+            </div>
+
+            <div class="kiosk-nav mt-4">
+              <button type="button" class="btn btn-outline-moe btn-lg" onclick="backFromUniversity()" id="backUni">رجوع</button>
+            </div>
+          </div>
+
+          <div class="kiosk-nav mt-4" id="studentBackNav">
+            <button type="button" class="btn btn-outline-moe btn-lg" onclick="prevStep()" id="backStudent">رجوع</button>
+          </div>
+        </section>
+
+        <!-- Step 3: ID + Phone -->
+        <section class="kiosk-card-hero kiosk-step" data-step="4" style="display:none">
+          <div class="kiosk-hero-title" id="t4">بيانات المستفيد</div>
+          <div class="kiosk-hero-sub" id="s4">Enter your ID and phone</div>
+
+          <div class="row g-3 mt-3 kiosk-form">
+            <div class="col-12">
+              <label class="kiosk-label" id="lblName" data-html="1">الاسم الثلاثي <span class="text-danger">*</span></label>
+              <input class="form-control kiosk-input" name="full_name" id="full_name" placeholder="">
+              <div class="invalid-feedback" id="err_full_name">حقل إلزامي</div>
+            </div>
+            <div class="col-12">
+              <label class="kiosk-label" id="lblId" data-html="1">رقم الهوية / الإقامة <span class="text-danger">*</span></label>
+              <input class="form-control kiosk-input" name="national_id" id="national_id" inputmode="numeric" placeholder="">
+              <div class="invalid-feedback" id="err_national_id">حقل إلزامي</div>
+            </div>
+            <div class="col-12">
+              <label class="kiosk-label" id="lblPhone" data-html="1">رقم الجوال <span class="text-danger">*</span></label>
+              <input class="form-control kiosk-input" name="phone" id="phone" inputmode="tel" placeholder="">
+              <div class="invalid-feedback" id="err_phone">حقل إلزامي</div>
+            </div>
+          </div>
+
+          <div class="kiosk-nav mt-4">
+            <button type="button" class="btn btn-outline-moe btn-lg" onclick="prevStep()" id="back4">رجوع</button>
+            <button type="button" class="btn btn-moe btn-lg" onclick="nextFromId()" id="next4">التالي</button>
+          </div>
+        </section>
+
+        <!-- Step 4: Service -->
+        <section class="kiosk-card-hero kiosk-step" data-step="5" style="display:none">
+          <div class="kiosk-hero-title" id="t5" data-html="1">اختر الخدمة <span class="text-danger">*</span></div>
+          <div class="kiosk-hero-sub" id="s5">Choose the requested service</div>
+
+          <div class="mt-3">
+            <div class="form-check form-switch d-flex align-items-center justify-content-center gap-2">
+              <input class="form-check-input" type="checkbox" id="has_previous" name="has_previous" value="true" onchange="togglePrevRef()">
+              <label class="form-check-label" for="has_previous" id="lblPrev">لدي طلب سابق</label>
+            </div>
+            <div class="mt-3" id="prevWrap" style="display:none">
+              <label class="kiosk-label" id="lblPrevRef" data-html="1">رقم الطلب السابق <span class="text-danger">*</span></label>
+              <input class="form-control kiosk-input" name="previous_ref" id="previous_ref" placeholder="">
+              <div class="invalid-feedback" id="err_previous_ref">حقل إلزامي</div>
+            </div>
+            <div class="mt-3" id="prevActions" style="display:none">
+              <button type="button" class="btn btn-primary w-100" onclick="submitPrevious()">إرسال</button>
+              <div class="small text-muted mt-2">اكتب رقم الطلب ثم اضغط “إرسال”.</div>
+            </div>
+          </div>
+
+          <div class="kiosk-services-title mt-4" id="srvTitle">الخدمات المتاحة اليوم</div>
+          <div class="kiosk-services-grid mt-2" id="normalServices">
+            <% services.forEach(s => { %>
+              <button type="button" class="kiosk-service-btn" onclick="chooseService('<%= s.id %>')" data-service-id="<%= s.id %>" data-service-type="<%= s.type || 'walkin' %>">
+                <div class="kiosk-tile-icon" aria-hidden="true">
+                  <% if (s.type === 'appointment') { %>
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M7 3v3M17 3v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      <path d="M4 7h16v14H4V7Z" stroke="currentColor" stroke-width="1.8"/>
+                      <path d="M4 11h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      <path d="M8 15h3v3H8v-3Z" fill="currentColor" opacity=".25"/>
+                    </svg>
+                  <% } else { %>
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" stroke-width="1.8"/>
+                      <path d="M4 21v-1c0-3.3 3.6-6 8-6s8 2.7 8 6v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
+                  <% } %>
+                </div>
+                <div class="kiosk-service-name" data-ar="<%= s.name_ar %>" data-en="<%= (s.name_en || s.name_ar) %>" data-fr="<%= (s.name_fr || s.name_en || s.name_ar) %>" data-zh="<%= (s.name_zh || s.name_en || s.name_ar) %>"><%= s.name_ar %></div>
+                <div class="kiosk-service-meta">
+                  <% if (s.type === 'appointment') { %>
+                    <span class="pill pill-info" data-ar="موعد" data-en="Appointment" data-fr="Rendez-vous" data-zh="预约">موعد</span>
+                  <% } else { %>
+                    <span class="pill pill-ok" data-ar="حضور" data-en="Walk-in" data-fr="Sans rendez-vous" data-zh="现场">حضور</span>
+                  <% } %>
+                </div>
+              </button>
+            <% }) %>
+          </div>
+
+          <div class="mt-2" id="staffServices" style="display:none">
+            <div class="kiosk-services-grid">
+              <% (staff_services || []).forEach(s => { %>
+                <button type="button" class="kiosk-service-btn" onclick="chooseService('<%= s.id %>')" data-service-id="<%= s.id %>" data-service-type="<%= s.type || 'walkin' %>">
+                  <div class="kiosk-tile-icon" aria-hidden="true">
+                    <% const ic = (s.icon || 'file'); %>
+                    <% if (ic === 'noor') { %>
+                      <img src="/public/brand/noor.png" alt="Noor" class="kiosk-brand-icon" />
+                    <% } else if (ic === 'faris') { %>
+                      <img src="/public/brand/faris.png" alt="Faris" class="kiosk-brand-icon" />
+                    <% } else if (ic === 'award') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 14l3-3 3 3-3 7-3-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M12 14l-3-3-3 3 3 7 3-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" opacity=".65"/>
+                        <path d="M12 13a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" stroke-width="1.8"/>
+                      </svg>
+                    <% } else if (ic === 'chart') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 20V4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M8 16v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M12 16V8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M16 16v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'up') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 19V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M7 10l5-5 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'clock') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 21a9 9 0 1 0-9-9 9 9 0 0 0 9 9Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M12 7v6l4 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'calendar') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7 3v3M17 3v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M4 7h16v14H4V7Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M4 11h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'wallet') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 7h18v14H3V7Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M3 7l2-4h14l2 4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M16 14h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'scale') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 3v18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M6 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M7 7 4 13h6L7 7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M17 7 14 13h6l-3-6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'plane') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 11l18-7-7 18-2-7-7-4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'users') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 21v-1c0-2.2-1.8-4-4-4H6c-2.2 0-4 1.8-4 4v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M9 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M22 21v-1c0-2-1.3-3.7-3.2-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M17 3a4 4 0 0 1 0 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'cap') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 3 2 8l10 5 10-5-10-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M6 10v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'contract') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 2h9l3 3v17H6V2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M9 10h6M9 14h6M9 18h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'search') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M11 19a8 8 0 1 1 8-8 8 8 0 0 1-8 8Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'shield') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2 4 6v6c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6l-8-4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'swap') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7 7h14l-3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M17 17H3l3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'alert') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 9v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M12 17h.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                        <path d="M10.3 4.2 2.3 18a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3l-8-13.8a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 2h9l3 3v17H6V2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M9 12h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } %>
+                  </div>
+                  <div class="kiosk-service-name" data-ar="<%= s.name_ar %>" data-en="<%= (s.name_en || s.name_ar) %>" data-fr="<%= (s.name_fr || s.name_en || s.name_ar) %>" data-zh="<%= (s.name_zh || s.name_en || s.name_ar) %>"><%= s.name_ar %></div>
+                  <div class="kiosk-service-meta">
+                    <span class="pill pill-ok" data-ar="حضور" data-en="Walk-in" data-fr="Sans rendez-vous" data-zh="现场">حضور</span>
+                  </div>
+                </button>
+              <% }) %>
+            </div>
+          </div>
+
+	          <div class="mt-2" id="studentServices" style="display:none">
+            <div class="kiosk-services-grid">
+              <% (student_services || []).forEach(s => { %>
+                <button type="button" class="kiosk-service-btn" onclick="chooseService('<%= s.id %>')" data-service-id="<%= s.id %>" data-service-type="<%= s.type || 'walkin' %>">
+                  <div class="kiosk-tile-icon" aria-hidden="true">
+                    <% const ic = (s.icon || 'file'); %>
+                    <% if (ic === 'noor') { %>
+                      <img src="/public/brand/noor.png" alt="Noor" class="kiosk-brand-icon" />
+                    <% } else if (ic === 'faris') { %>
+                      <img src="/public/brand/faris.png" alt="Faris" class="kiosk-brand-icon" />
+                    <% } else if (ic === 'users') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M7 21v-1c0-2.2 2.2-4 5-4s5 1.8 5 4v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'cap') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 9l9-4 9 4-9 4-9-4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M6 11v5c0 1.7 3 3 6 3s6-1.3 6-3v-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'shield') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 3 20 7v6c0 5-3.4 8-8 10-4.6-2-8-5-8-10V7l8-4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'chart') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 19V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M4 19h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M8 16v-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M12 16v-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M16 16v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'calendar') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7 3v3M17 3v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M4 7h16v14H4V7Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M4 11h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'scale') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 3v18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M5 7h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M7 7 4 13h6L7 7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M17 7 14 13h6l-3-6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7 4h10v16H7V4Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M9 8h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M9 12h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } %>
+	          </div>
+                  <div class="kiosk-service-name" data-ar="<%= s.name_ar %>" data-en="<%= (s.name_en || s.name_ar) %>" data-fr="<%= (s.name_fr || s.name_en || s.name_ar) %>" data-zh="<%= (s.name_zh || s.name_en || s.name_ar) %>"><%= s.name_ar %></div>
+                  <div class="kiosk-service-meta">
+                    <span class="pill pill-ok" data-ar="حضور" data-en="Walk-in" data-fr="Sans rendez-vous" data-zh="现场">حضور</span>
+                  </div>
+                </button>
+              <% }) %>
+            </div>
+          </div>
+
+
+          <div class="mt-2" id="teacherServices" style="display:none">
+            <div class="kiosk-services-grid">
+              <% (teacher_services || []).forEach(s => { %>
+                <button type="button" class="kiosk-service-btn" onclick="chooseService('<%= s.id %>')" data-service-id="<%= s.id %>" data-service-type="<%= s.type || 'walkin' %>">
+                  <div class="kiosk-tile-icon" aria-hidden="true">
+                    <% const ic = (s.icon || 'file'); %>
+                    
+                    <% if (ic === 'noor') { %>
+                      <img src="/public/brand/noor.png" alt="Noor" class="kiosk-brand-icon" />
+                    <% } else if (ic === 'faris') { %>
+                      <img src="/public/brand/faris.png" alt="Faris" class="kiosk-brand-icon" />
+                    <% } else if (ic === 'award') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 15a5 5 0 1 0-5-5 5 5 0 0 0 5 5Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M9 14v7l3-2 3 2v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'chart') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 19V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M4 19h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M8 16v-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M12 16v-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M16 16v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'up') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 19V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M7 10l5-5 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'clock') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 21a9 9 0 1 0-9-9 9 9 0 0 0 9 9Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'cap') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 9l9-4 9 4-9 4-9-4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M6 11v5c0 1.7 3 3 6 3s6-1.3 6-3v-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'monitor') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 5h16v10H4V5Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M9 19h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M12 15v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'search') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10.5 18a7.5 7.5 0 1 0-7.5-7.5A7.5 7.5 0 0 0 10.5 18Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'users') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M2 21v-1c0-2.2 2.1-4 5-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M22 21v-1c0-2.2-2.1-4-5-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M7 21v-1c0-2.2 2.2-4 5-4s5 1.8 5 4v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'plane') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M2 16l20-7-20-7 5 7-5 7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M7 9h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'bulb') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 3a7 7 0 0 0-4 12c.8.6 1.2 1.5 1.2 2.5V19h5.6v-1.5c0-1 .4-1.9 1.2-2.5A7 7 0 0 0 12 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M10 22h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'alert') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 9v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M12 17h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                        <path d="M10.3 4.6 2.7 18.3A2 2 0 0 0 4.5 21h15a2 2 0 0 0 1.8-2.7L13.7 4.6a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'shield') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 3 20 7v6c0 5-3.4 8-8 10-4.6-2-8-5-8-10V7l8-4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'wallet') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 7h16v12H4V7Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M16 11h4v4h-4a2 2 0 0 1 0-4Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M4 7V6a2 2 0 0 1 2-2h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'calendar') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7 3v3M17 3v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M4 7h16v14H4V7Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M4 11h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else if (ic === 'scale') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 3v18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M5 7h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M7 7 4 13h6L7 7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M17 7 14 13h6l-3-6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'swap') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7 7h11l-2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M17 17H6l2 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    <% } else if (ic === 'contract') { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7 3h7l3 3v15H7V3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M9 10h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M9 14h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } else { %>
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 6h16v12H4V6Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M7 10h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M7 14h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    <% } %>
+                  </div>
+                  <div class="kiosk-service-name"
+                       data-ar="<%= s.name_ar %>"
+                       data-en="<%= (s.name_en || s.name_ar) %>"
+                       data-fr="<%= (s.name_fr || s.name_en || s.name_ar) %>"
+                       data-zh="<%= (s.name_zh || s.name_en || s.name_ar) %>"><%= s.name_ar %></div>
+                </button>
+              <% }) %>
+            </div>
+          </div>
+
+          <div class="kiosk-nav mt-4">
+            <button type="button" class="btn btn-outline-moe btn-lg" onclick="prevStep()" id="back5">رجوع</button>
+          </div>
+
+          <div class="muted mt-3" style="font-size:1rem" id="printNote">
+            <span id="printNoteTxt">سيتم طباعة الرقم تلقائيًا. (للطباعة الصامتة استخدم وضع Kiosk في المتصفح)</span>
+          </div>
+        </section>
+
+      </form>
+    </main>
+  </div>
+
+  <script>
+    // iOS: stable viewport height (Safari address bar changes) + reduce top bars.
+    function setVh(){
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', vh + 'px');
+    }
+    setVh();
+    window.addEventListener('resize', setVh);
+    window.addEventListener('orientationchange', ()=>setTimeout(setVh, 150));
+    window.addEventListener('load', ()=>{
+      setTimeout(()=>{ try{ window.scrollTo(0,1); }catch(e){} }, 50);
+    });
+    // PWA installability
+    if ('serviceWorker' in navigator){
+      navigator.serviceWorker.register('/public/sw.js').catch(()=>{});
+    }
+  </script>
+
+  <script>
+    const ENABLED_LANGS = <%- JSON.stringify((ui && ui.kiosk_languages) ? ui.kiosk_languages : ['ar','en','zh','fr']) %>;
+
+    const UI = {
+      theme: '<%= (ui && ui.theme) ? ui.theme : 'dark' %>',
+      printingMode: '<%= (ui && ui.kiosk_printing_mode) ? ui.kiosk_printing_mode : 'browser' %>'
+    };
+
+    let step = 1;
+    let pendingServiceId = null;
+    let currentLang = (localStorage.getItem('kiosk_lang') || '<%= lang %>' || 'ar');
+    if (!ENABLED_LANGS.includes(currentLang)) currentLang = (ENABLED_LANGS[0] || 'ar');
+
+    const T = {
+      ar: {
+        hdrSub: 'اتبع الخطوات لإصدار رقم',
+        t1:'اختر اللغة', s1:'Choose your language',
+        t2:'اختر فئة المستفيد <span class="text-danger">*</span>', s2:'اختر الفئة لتكملة الطلب',
+        // Step 3 (Parent/Student): choose track
+        t3:'اختر نوع الطالب <span class="text-danger">*</span>', s3:'اختر المسار للمتابعة',
+        // Step 4: beneficiary data
+        t4:'بيانات المستفيد', s4:'أدخل الاسم الثلاثي ورقم الهوية والجوال',
+        // Step 5: choose service
+        t5:'اختر الخدمة <span class="text-danger">*</span>', s5:'اختر الخدمة المطلوبة',
+        lblName:'الاسم الثلاثي <span class="text-danger">*</span>',
+        lblId:'رقم الهوية / الإقامة <span class="text-danger">*</span>',
+        lblPhone:'رقم الجوال <span class="text-danger">*</span>',
+        lblPrev:'لدي طلب سابق',
+        lblPrevRef:'رقم الطلب السابق <span class="text-danger">*</span>',
+        // Placeholders
+        ph_name:'مثال: محمد عبدالله العتيبي',
+        ph_id:'مثال: 10xxxxxxxx',
+        ph_phone:'مثال: 05xxxxxxxx',
+        ph_prev:'مثال: 2026-000123',
+        srvTitle:'الخدمات المتاحة اليوم',
+        srvTitleTeacher:"تصنيفات المعلم",
+        srvTitleStudent:"خدمات الطالب (تعليم عام)",
+        back:'رجوع', next:'التالي',
+        req:'حقل إلزامي',
+        printNote:'سيتم طباعة الرقم تلقائيًا. (للطباعة الصامتة استخدم وضع Kiosk في المتصفح)',
+        fsTxt:'لأفضل تجربة على شاشة اللمس: اضغط زر ⛶ لملء الشاشة.'
+      },
+      en: {
+        hdrSub: 'Follow the steps to get a ticket',
+        t1:'Choose language', s1:'Choose your language',
+        t2:'Choose category <span class="text-danger">*</span>', s2:'Select your category to continue',
+        t3:'Choose student type <span class="text-danger">*</span>', s3:'Select the track to continue',
+        t4:'Your details', s4:'Enter full name, ID and phone',
+        t5:'Choose service <span class="text-danger">*</span>', s5:'Select the requested service',
+        lblName:'Full name (3 parts) <span class="text-danger">*</span>',
+        lblId:'National ID / Iqama <span class="text-danger">*</span>',
+        lblPhone:'Mobile number <span class="text-danger">*</span>',
+        lblPrev:'I have a previous request',
+        lblPrevRef:'Previous request number <span class="text-danger">*</span>',
+        // Placeholders
+        ph_name:'Example: John Smith',
+        ph_id:'Example: 10xxxxxxxx',
+        ph_phone:'Example: 05xxxxxxxx',
+        ph_prev:'Example: 2026-000123',
+        srvTitle:'Services available today',
+        srvTitleTeacher:"Teacher categories",
+        srvTitleStudent:"Student services (General)",
+        back:'Back', next:'Next',
+        req:'Required',
+        printNote:'A ticket will be printed automatically. (Silent printing requires kiosk browser mode)',
+        fsTxt:'For best touch experience: tap ⛶ to go fullscreen.'
+      },
+      zh: {
+        hdrSub: '请按步骤取号',
+        t1:'选择语言', s1:'请选择语言',
+        t2:'选择类别 <span class="text-danger">*</span>', s2:'请选择类别以继续',
+        t3:'选择学生类型 <span class="text-danger">*</span>', s3:'请选择路径以继续',
+        t4:'受益人信息', s4:'请输入姓名、证件号和手机号',
+        t5:'选择服务 <span class="text-danger">*</span>', s5:'请选择所需服务',
+        lblName:'姓名（至少三段） <span class="text-danger">*</span>',
+        lblId:'证件号 / 居留证 <span class="text-danger">*</span>',
+        lblPhone:'手机号 <span class="text-danger">*</span>',
+        lblPrev:'我有之前的请求',
+        lblPrevRef:'之前的请求编号 <span class="text-danger">*</span>',
+        // Placeholders
+        ph_name:'示例：张三',
+        ph_id:'示例：10xxxxxxxx',
+        ph_phone:'示例：05xxxxxxxx',
+        ph_prev:'示例：2026-000123',
+        srvTitle:'今日可用服务',
+        srvTitleTeacher:"教师分类",
+        srvTitleStudent:"学生服务（普通教育）",
+        back:'返回', next:'下一步',
+        req:'必填',
+        printNote:'系统将自动打印票据。（静默打印需使用浏览器Kiosk模式）',
+        fsTxt:'为获得最佳触屏体验：点击 ⛶ 进入全屏。'
+      }
+      ,
+      fr: {
+        hdrSub: 'Suivez les étapes pour obtenir un ticket',
+        t1:'Choisir la langue', s1:'Veuillez choisir votre langue',
+        t2:'Choisir la catégorie <span class="text-danger">*</span>', s2:'Sélectionnez votre catégorie pour continuer',
+        t3:'Choisir le type d\'étudiant <span class="text-danger">*</span>', s3:'Sélectionnez le parcours pour continuer',
+        t4:'Vos informations', s4:'Saisissez le nom, l\'identité et le mobile',
+        t5:'Choisir le service <span class="text-danger">*</span>', s5:'Sélectionnez le service demandé',
+        lblName:'Nom complet (3 parties) <span class="text-danger">*</span>',
+        lblId:'ID national / Iqama <span class="text-danger">*</span>',
+        lblPhone:'Numéro de mobile <span class="text-danger">*</span>',
+        lblPrev:'J\'ai une demande précédente',
+        lblPrevRef:'Numéro de la demande précédente <span class="text-danger">*</span>',
+        ph_name:'Exemple : Jean Dupont',
+        ph_id:'Exemple : 10xxxxxxxx',
+        ph_phone:'Exemple : 05xxxxxxxx',
+        ph_prev:'Exemple : 2026-000123',
+        srvTitle:'Services disponibles aujourd\'hui',
+        srvTitleTeacher:"Catégories enseignant",
+        srvTitleStudent:"Services étudiant (Général)",
+        back:'Retour', next:'Suivant',
+        req:'Obligatoire',
+        printNote:'Un ticket sera imprimé automatiquement. (L\'impression silencieuse nécessite le mode Kiosk du navigateur)',
+        fsTxt:'Pour une meilleure expérience tactile : appuyez sur ⛶ pour le plein écran.'
+      }
+
+    };
+
+    function qs(sel){ return document.querySelector(sel); }
+    function qsa(sel){ return Array.from(document.querySelectorAll(sel)); }
+    function setVal(selector, value){
+      const el = qs(selector);
+      if(!el) return;
+      if(el.dataset && el.dataset.html === '1') el.innerHTML = value;
+      else el.textContent = value;
+    }
+
+    function applyLang(){
+      const tr = T[currentLang] || T.ar;
+      document.documentElement.lang = currentLang;
+      document.documentElement.dir = (currentLang === 'ar') ? 'rtl' : 'ltr';
+
+      // Switch Bootstrap RTL/LTR to avoid layout shifts when using dir=rtl
+      const bsLtr = document.getElementById('bsLtr');
+      const bsRtl = document.getElementById('bsRtl');
+      if (bsLtr && bsRtl){
+        const isRtl = currentLang === 'ar';
+        bsLtr.disabled = isRtl;
+        bsRtl.disabled = !isRtl;
+      }
+
+      qs('#lang').value = currentLang;
+      setVal('#hdrSub', tr.hdrSub);
+      setVal('#t1', tr.t1); setVal('#s1', tr.s1);
+      setVal('#t2', tr.t2); setVal('#s2', tr.s2);
+      setVal('#t3', tr.t3); setVal('#s3', tr.s3);
+      setVal('#t4', tr.t4); setVal('#s4', tr.s4);
+      setVal('#t5', tr.t5); setVal('#s5', tr.s5);
+      setVal('#lblName', tr.lblName);
+      setVal('#lblId', tr.lblId);
+      setVal('#lblPhone', tr.lblPhone);
+      setVal('#lblPrev', tr.lblPrev);
+      setVal('#lblPrevRef', tr.lblPrevRef);
+      setVal('#srvTitle', tr.srvTitle || 'الخدمات المتاحة اليوم');
+      setVal('#printNoteTxt', tr.printNote);
+      setVal('#fsTxt', tr.fsTxt);
+
+      // Buttons (were not localized previously)
+      setVal('#back2', tr.back);
+      setVal('#backStudent', tr.back);
+      setVal('#backUni', tr.back);
+      setVal('#next4', tr.next);
+      setVal('#back4', tr.back);
+      setVal('#back5', tr.back);
+
+      // flip multilingual labels
+      qsa('[data-ar]').forEach(el => {
+        const v = (currentLang === 'ar') ? el.getAttribute('data-ar')
+          : (currentLang === 'en') ? (el.getAttribute('data-en') || el.getAttribute('data-ar'))
+          : (currentLang === 'fr') ? (el.getAttribute('data-fr') || el.getAttribute('data-en') || el.getAttribute('data-ar'))
+          : (currentLang === 'zh') ? (el.getAttribute('data-zh') || el.getAttribute('data-en') || el.getAttribute('data-ar'))
+          : el.getAttribute('data-ar');
+        if (v != null){ if (el.dataset && el.dataset.html === '1') el.innerHTML = v; else el.textContent = v; }
+      });
+
+      // Placeholders
+      const phName = document.getElementById('full_name');
+      const phId = document.getElementById('national_id');
+      const phPhone = document.getElementById('phone');
+      const phPrev = document.getElementById('previous_ref');
+      if (phName) phName.setAttribute('placeholder', tr.ph_name || '');
+      if (phId) phId.setAttribute('placeholder', tr.ph_id || '');
+      if (phPhone) phPhone.setAttribute('placeholder', tr.ph_phone || '');
+      if (phPrev) phPrev.setAttribute('placeholder', tr.ph_prev || '');
+    }
+
+    function showStep(n){
+      step = n;
+      qsa('.kiosk-step').forEach(sec => {
+        sec.style.display = (Number(sec.dataset.step) === n) ? '' : 'none';
+      });
+    }
+
+    function setLang(l){
+      currentLang = l;
+      localStorage.setItem('kiosk_lang', l);
+      applyLang();
+      showStep(2);
+    }
+
+    function pickBenef(type){
+      qs('#beneficiary_type').value = type;
+      // reset student track state
+      try{ qs('#student_track').value = ''; }catch(e){}
+      try{ qs('#studentTrackChooser').style.display=''; qs('#studentUniBox').style.display='none'; }catch(e){}
+
+      if (type === 'parent_student') showStep(3);
+      else showStep(4);
+    }
+
+    function pickStudent(track){
+      try{ qs('#student_track').value = track; }catch(e){}
+      if (track === 'general'){
+        showStep(4);
+      } else {
+        // Ensure we are on the correct step (some browsers may keep another step visible)
+        try{ showStep(3); }catch(e){}
+        // university info stays in same step
+        try{ qs('#studentTrackChooser').style.display='none'; qs('#studentUniBox').style.display=''; }catch(e){}
+        // hide the "choose type" header/sub while showing the university message
+        try{ qs('#t3').style.display='none'; }catch(e){}
+        try{ qs('#s3').style.display='none'; }catch(e){}
+        try{ qs('#studentBackNav').style.display='none'; }catch(e){}
+      }
+    }
+
+    function backFromUniversity(){
+      try{ qs('#studentUniBox').style.display='none'; qs('#studentTrackChooser').style.display=''; }catch(e){}
+      try{ qs('#t3').style.display=''; }catch(e){}
+      try{ qs('#s3').style.display=''; }catch(e){}
+      try{ qs('#studentBackNav').style.display=''; }catch(e){}
+    }
+
+
+    function updateServiceView(){
+      const bt = (qs('#beneficiary_type').value || '').trim();
+      const st = (qs('#student_track') ? (qs('#student_track').value || '').trim() : '');
+      const isTeacher = (bt === 'teacher');
+      const isStudent = (bt === 'parent_student' && st === 'general');
+      const isStaff = (bt === 'staff');
+      try{ qs('#teacherServices').style.display = isTeacher ? '' : 'none'; }catch(e){}
+      try{ qs('#staffServices').style.display = isStaff ? '' : 'none'; }catch(e){}
+      try{ qs('#studentServices').style.display = isStudent ? '' : 'none'; }catch(e){}
+      try{ qs('#normalServices').style.display = (isTeacher || isStudent || isStaff) ? 'none' : ''; }catch(e){}
+
+      // previous-request switch hidden for teacher categories only
+      try{ const sw = qs('#has_previous').closest('.form-check'); if (sw) sw.style.display = isTeacher ? 'none' : ''; }catch(e){}
+      try{ if (isTeacher){ qs('#has_previous').checked = false; togglePrevRef(); } }catch(e){}
+
+      // service title
+      try{
+        const tr = (T && (T[currentLang] || T.ar)) || {};
+        const fallback = (T && T.ar && T.ar.srvTitle) ? T.ar.srvTitle : 'الخدمات المتاحة اليوم';
+        const title = isTeacher
+          ? (tr.srvTitleTeacher || tr.srvTitle || fallback)
+          : (isStudent
+              ? (tr.srvTitleStudent || tr.srvTitle || fallback)
+              : (tr.srvTitle || fallback));
+        qs('#srvTitle').textContent = title;
+      }catch(e){}
+    }
+
+    function kioskToast(msg){
+      const el = document.getElementById('kioskToast');
+      if (!el) return;
+      el.textContent = msg;
+      el.style.display='block';
+      el.style.opacity='1';
+      clearTimeout(el.__t);
+      el.__t=setTimeout(()=>{ try{el.style.opacity='0';}catch(e){} }, 1800);
+      clearTimeout(el.__t2);
+      el.__t2=setTimeout(()=>{ try{el.style.display='none';}catch(e){} }, 2200);
+    }
+
+    function setInvalid(id, on){
+      const el = qs('#'+id);
+      if(!el) return;
+      if(on) el.classList.add('is-invalid');
+      else el.classList.remove('is-invalid');
+    }
+
+    function nextFromId(){
+      const nm = (qs('#full_name').value || '').trim();
+      const id = (qs('#national_id').value || '').trim();
+      const ph = (qs('#phone').value || '').trim();
+      let ok = true;
+      const parts = nm.split(/\s+/).filter(Boolean);
+      if(!nm || parts.length < 3){ setInvalid('full_name', true); ok=false; } else setInvalid('full_name', false);
+      if(!id || id.length < 8){ setInvalid('national_id', true); ok=false; } else setInvalid('national_id', false);
+      const digits = ph.replace(/\D/g,'');
+      if(!ph || digits.length < 8){ setInvalid('phone', true); ok=false; } else setInvalid('phone', false);
+      if(!ok) return;
+      showStep(5);
+      updateServiceView();
+    }
+
+    function togglePrevRef(){
+      const on = !!qs('#has_previous').checked;
+      qs('#prevWrap').style.display = on ? '' : 'none';
+      if(!on) setInvalid('previous_ref', false);
+
+      // hide prev UI
+      try{ qs('#prevActions').style.display = 'none'; }catch(e){}
+      pendingServiceId = null;
+    }
+
+    function chooseService(id){
+      // Validate previous ref if required
+      const serviceId = Number(id);
+      const hasPrev = !!qs('#has_previous').checked;
+      const prev = (qs('#previous_ref').value || '').trim();
+      const requirePrev = (serviceId === 3) || hasPrev; // متابعة طلب عادةً
+      if (requirePrev && !prev){
+        qs('#prevWrap').style.display = '';
+        qs('#prevActions').style.display = '';
+        pendingServiceId = serviceId;
+        setInvalid('previous_ref', true);
+        kioskToast('فضلاً أدخل رقم الطلب السابق ثم اضغط استمرار');
+        try{ qs('#previous_ref').focus(); }catch(e){}
+        return;
+      }
+      setInvalid('previous_ref', false);
+
+      // hide prev UI
+      try{ qs('#prevActions').style.display = 'none'; }catch(e){}
+      pendingServiceId = null;
+
+      qs('#service_id').value = String(serviceId);
+
+      kioskToast('جارٍ المتابعة...');
+      // submit
+      qs('#kioskForm').submit();
+    }
+
+    
+    function submitPrevious(){
+      const prev = (qs('#previous_ref').value || '').trim();
+      if (!prev){
+        setInvalid('previous_ref', true);
+        kioskToast('فضلاً أدخل رقم الطلب ثم اضغط إرسال');
+        try{ qs('#previous_ref').focus(); }catch(e){}
+        return;
+      }
+      setInvalid('previous_ref', false);
+      const sid = pendingServiceId || 3;
+      qs('#service_id').value = String(sid);
+      kioskToast('جارٍ الإرسال...');
+      qs('#kioskForm').submit();
+    }
+
+    // Enter key submits previous ref when visible
+    document.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter'){
+        const wrap = qs('#prevWrap');
+        if (wrap && wrap.style.display !== 'none'){
+          e.preventDefault();
+          submitPrevious();
+        }
+      }
+    });
+
+function prevStep(){
+      const bt = (qs('#beneficiary_type') && qs('#beneficiary_type').value) ? qs('#beneficiary_type').value : '';
+      const st = (qs('#student_track') && qs('#student_track').value) ? qs('#student_track').value : '';
+
+      // Step routing (fixes inconsistent back navigation)
+      // 1: language, 2: beneficiary, 3: student track, 4: beneficiary data, 5: services, 6: ticket
+      if (step === 5){
+        // back from services -> beneficiary data
+        return showStep(4);
+      }
+      if (step === 4){
+        // Teacher/others go back to beneficiary selection
+        if (bt !== 'parent_student') return showStep(2);
+        // Parent/Student goes back to track chooser
+        return showStep(3);
+      }
+      if (step === 3){
+        // back from student track chooser -> beneficiary selection
+        return showStep(2);
+      }
+      showStep(Math.max(1, step-1));
+    }
+
+    function toggleFullscreen(){
+      const doc = document;
+      const el = doc.documentElement;
+      try{
+        if (!doc.fullscreenElement && el.requestFullscreen) el.requestFullscreen();
+        else if (doc.exitFullscreen) doc.exitFullscreen();
+      }catch(e){}
+    }
+
+    (function init(){
+      // initial language screen always first
+      applyLang();
+      showStep(1);
+      // preload lang in hidden input (in case you want to skip step later)
+      qs('#lang').value = currentLang;
+
+      // Fullscreen: auto-try on load (may be blocked) and on first tap
+      const autoFS = <%= (ui && ui.kiosk_auto_fullscreen) ? 'true' : 'false' %>;
+      const showFsHint = <%= (ui && ui.kiosk_show_fullscreen_hint) ? 'true' : 'false' %>;
+      const fsBtn = qs('#btnFs');
+      if (fsBtn && !showFsHint) fsBtn.style.display = 'none';
+      function tryAutoFS(){
+        if (!autoFS) return;
+        try{
+          const doc = document;
+          const el = doc.documentElement;
+          if (!doc.fullscreenElement && el.requestFullscreen) el.requestFullscreen();
+        }catch(e){}
+      }
+      if (autoFS){
+        setTimeout(tryAutoFS, 450);
+        document.addEventListener('pointerdown', tryAutoFS, {once:true, capture:true});
+      }
+    })();
+  </script>
+  <script src="/public/pwa-helper.js"></script>
+</body>
+</html>

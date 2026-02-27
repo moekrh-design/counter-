@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="<%= lang %>" dir="<%= (lang==='ar') ? 'rtl' : 'ltr' %>">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= lang==='en' ? 'Your Ticket' : (lang==='fr' ? 'Votre ticket' : (lang==='zh' ? '您的号码' : 'رقمك')) %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/public/app.css" rel="stylesheet">
+  <link href="/public/moe-ui.css" rel="stylesheet">
+</head>
+<body class="kiosk-body kiosk-full" data-theme="<%= (ui && ui.theme) ? ui.theme : 'dark' %>">
+  <div class="kiosk-shell kiosk-shell-center">
+    <main class="kiosk-stage">
+      <div class="kiosk-card-hero kiosk-ticket-hero">
+        <div class="kiosk-ticket-top">
+          <div class="kiosk-brand kiosk-brand-ticket">
+            <div class="kiosk-brand-logo">
+              <% if (branding && branding.logo_path) { %>
+                <img alt="logo" src="<%= branding.logo_path %>" class="kiosk-logo-img" />
+              <% } else { %>
+                <div class="moe-badge">MOE</div>
+              <% } %>
+            </div>
+            <div class="kiosk-brand-text">
+              <div class="kiosk-title"><%=
+                (lang==='ar') ? (branding.org_name_ar || 'وزارة التعليم') :
+                (lang==='en') ? (branding.org_name_en || 'Ministry of Education') :
+                (lang==='fr') ? (branding.org_name_fr || branding.org_name_en || 'Ministry of Education') :
+                (lang==='zh') ? (branding.org_name_zh || branding.org_name_en || 'Ministry of Education') :
+                (branding.org_name_ar || 'وزارة التعليم')
+              %></div>
+              <div class="kiosk-subtitle"><%=
+                (lang==='ar') ? (branding.org_unit_ar || 'مكتب رعاية المستفيدين') :
+                (lang==='en') ? (branding.org_unit_en || 'Beneficiary Services') :
+                (lang==='fr') ? (branding.org_unit_fr || branding.org_unit_en || 'Beneficiary Services') :
+                (lang==='zh') ? (branding.org_unit_zh || branding.org_unit_en || 'Beneficiary Services') :
+                (branding.org_unit_ar || 'مكتب رعاية المستفيدين')
+              %></div>
+            </div>
+          </div>
+          <div class="kiosk-count" id="countdown"><%= (ui && ui.kiosk_return_seconds) ? ui.kiosk_return_seconds : 10 %></div>
+        </div>
+        <div class="muted" style="font-size:1.15rem"><%= lang==='en' ? 'Your ticket number' : (lang==='fr' ? 'Votre numéro de ticket' : (lang==='zh' ? '您的取号号码' : 'رقم تذكرتك')) %></div>
+        <div class="big-ticket-xl mt-2"><%= ticket.ticket_code %></div>
+        <div class="mt-2">
+          <span class="pill"><%=
+            (lang==='ar') ? (ticket.service_name_ar || ticket.service_name) :
+            (lang==='en') ? (ticket.service_name_en || ticket.service_name) :
+            (lang==='fr') ? (ticket.service_name_fr || ticket.service_name_en || ticket.service_name) :
+            (lang==='zh') ? (ticket.service_name_zh || ticket.service_name_en || ticket.service_name) :
+            (ticket.service_name_ar || ticket.service_name)
+          %></span>
+        </div>
+
+        <% if (ticket.full_name) { %>
+          <div class="muted mt-2" style="font-size:1rem">
+            <%= lang==='en' ? 'Name: ' : (lang==='fr' ? 'Nom : ' : (lang==='zh' ? '姓名：' : 'الاسم: ')) %><%= ticket.full_name %>
+          </div>
+        <% } %>
+
+        <div class="kiosk-wait-msg mt-4">
+          <%= lang==='en'
+              ? 'Please proceed to the waiting area. Your number will be called shortly.'
+              : (lang==='fr'
+                  ? 'Veuillez vous rendre à la salle d\'attente. Votre numéro sera appelé prochainement.'
+                  : (lang==='zh'
+                      ? '请前往等候区，稍后将呼叫您的号码。'
+                      : 'نستأذنك بالتوجه لمقاعد الانتظار، وسيتم مناداة رقمك حالما يحين دورك.')) %>
+        </div>
+
+        <div class="mt-4">
+          <div class="qr-box">
+            <img class="qr-img" alt="QR" src="/api/qr.png?text=<%= encodeURIComponent(ticket.qr_value || ticket.ticket_code) %>">
+            <div class="muted small"><%= lang==='en' ? 'Scan (backup)' : (lang==='fr' ? 'Scanner (secours)' : (lang==='zh' ? '扫码（备用）' : 'تصوير (احتياطي)')) %></div>
+            <div class="fw-bold" style="letter-spacing:1px"><%= ticket.barcode_value || ticket.ticket_code %></div>
+          </div>
+        </div>
+
+        <div class="muted mt-3" style="font-size:1rem">
+          <%= lang==='en' ? 'Issued at: ' : (lang==='fr' ? 'Émis le : ' : (lang==='zh' ? '出票时间：' : 'وقت الإصدار: ')) %>
+          <%= (ticket.issued_date || '') %> <%= (ticket.issued_time || '') %>
+        </div>
+
+        <!-- Print-only ticket card -->
+        <div class="ticket-print">
+          <div style="padding: 14px 10px; border: 2px solid rgba(21,68,90,.22); border-radius: 14px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap: 10px;">
+              <div style="font-weight:900; font-size: 18px; color:#15445a;">MOE</div>
+              <div style="font-weight:900; font-size: 16px;"><%= lang==='en' ? 'Beneficiary Services' : (lang==='fr' ? 'Services aux bénéficiaires' : (lang==='zh' ? '受益人服务' : 'خدمات المستفيدين')) %></div>
+            </div>
+            <hr/>
+            <div style="text-align:center;">
+              <div style="font-size: 12px; opacity:.8;"><%= lang==='en' ? 'Ticket number' : (lang==='fr' ? 'Numéro de ticket' : (lang==='zh' ? '票号' : 'رقم التذكرة')) %></div>
+              <div style="font-weight:1000; font-size: 48px; letter-spacing:2px;"> <%= ticket.ticket_code %> </div>
+              <div style="margin-top:6px; font-size: 14px;"><%=
+                (lang==='ar') ? (ticket.service_name_ar || ticket.service_name) :
+                (lang==='en') ? (ticket.service_name_en || ticket.service_name) :
+                (lang==='fr') ? (ticket.service_name_fr || ticket.service_name_en || ticket.service_name) :
+                (lang==='zh') ? (ticket.service_name_zh || ticket.service_name_en || ticket.service_name) :
+                (ticket.service_name_ar || ticket.service_name)
+              %></div>
+              <div style="margin-top:10px;">
+                <img alt="QR" style="width:160px;height:160px" src="/api/qr.png?text=<%= encodeURIComponent(ticket.qr_value || ticket.ticket_code) %>">
+              </div>
+              <div style="margin-top:8px; font-size: 12px; letter-spacing:1px;"><%= ticket.barcode_value || '' %></div>
+              <div style="margin-top:8px; font-size: 11px; opacity:.85;">
+                <%= lang==='en' ? 'Issued at: ' : (lang==='zh' ? '出票时间：' : 'وقت الإصدار: ') %>
+                <%= (ticket.issued_date || '') %> <%= (ticket.issued_time || '') %>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="muted mt-4" style="font-size:1rem">
+          <%= lang==='en' ? 'This screen will restart automatically.' : (lang==='zh' ? '页面将自动返回首页。' : 'ستعود الشاشة تلقائيًا خلال ثوانٍ.') %>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function restart(){
+      const u = new URL(window.location.origin + '/kiosk');
+      u.searchParams.set('lang', '<%= lang %>');
+      window.location.href = u.toString();
+    }
+    function tryPrint(){
+      try{ window.print(); }catch(e){}
+    }
+    (function(){
+      // Attempt auto-print. Note: silent printing needs special kiosk browser settings.
+      const autoPrint = ('<%= (ui && ui.kiosk_auto_print) ? 'true' : 'false' %>' === 'true');
+      if (autoPrint){ setTimeout(tryPrint, 350); }
+      let left = Number('<%= (ui && ui.kiosk_return_seconds) ? ui.kiosk_return_seconds : 10 %>') || 10;
+      const el = document.getElementById('countdown');
+      const t = setInterval(()=>{
+        left -= 1;
+        if (el) el.textContent = String(left);
+        if (left <= 0){
+          clearInterval(t);
+          restart();
+        }
+      }, 1000);
+    })();
+  </script>
+</body>
+</html>

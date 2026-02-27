@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>سجل المستفيدين</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+  <link href="/public/app.css" rel="stylesheet">
+  <link href="/public/moe-ui.css" rel="stylesheet">
+</head>
+<body>
+<div class="ui-container">
+  <%- include('partials_nav', {user:user}) %>
+
+  <div class="ui-card mt-3">
+    <div class="d-flex flex-wrap gap-2 align-items-end justify-content-between">
+      <div>
+        <div class="h4 fw-bold mb-1">سجل المستفيدين</div>
+        <div class="text-muted">استعراض أسماء المستفيدين وسجل الحالات مع ملخص آخر إغلاق</div>
+      </div>
+      <div class="btn-group" role="group" aria-label="Quick ranges">
+        <button class="btn btn-outline-primary" type="button" onclick="setRange('day')">اليوم</button>
+        <button class="btn btn-outline-primary" type="button" onclick="setRange('week')">الأسبوع</button>
+        <button class="btn btn-outline-primary" type="button" onclick="setRange('month')">الشهر</button>
+        <button class="btn btn-outline-primary" type="button" onclick="setRange('year')">السنة</button>
+        <button class="btn btn-outline-secondary" type="button" onclick="setRange('all')">الكل</button>
+      </div>
+    </div>
+
+    <hr class="my-3"/>
+
+    <div class="d-flex flex-wrap gap-2 align-items-end">
+      <div style="min-width:220px">
+        <label class="form-label mb-1">عرض سريع</label>
+        <select id="range" class="form-select form-select-lg" onchange="loadList()">
+          <option value="day">اليوم</option>
+          <option value="week" selected>الأسبوع</option>
+          <option value="month">الشهر</option>
+          <option value="year">السنة</option>
+          <option value="all">الكل</option>
+        </select>
+      </div>
+      <div class="flex-grow-1">
+        <label class="form-label mb-1">بحث (هوية/جوال/تذكرة/اسم)</label>
+        <input id="q" class="form-control form-control-lg" placeholder="اكتب رقم الهوية أو الجوال أو رقم التذكرة أو الاسم" autocomplete="off" />
+      </div>
+      <div style="min-width:220px">
+        <label class="form-label mb-1">نوع البحث</label>
+        <select id="mode" class="form-select form-select-lg">
+          <option value="auto">تلقائي</option>
+          <option value="nid">رقم الهوية</option>
+          <option value="phone">الجوال</option>
+          <option value="ticket">رقم التذكرة</option>
+          <option value="name">الاسم</option>
+        </select>
+      </div>
+      <div>
+        <button class="btn btn-primary btn-lg" onclick="doSearch()">بحث</button>
+      </div>
+    </div>
+
+    <div class="mt-3 text-muted small">
+      تلميح: اختر "تلقائي" وسيحدد النظام النوع بناءً على المدخلات.
+    </div>
+  </div>
+
+  <div class="ui-card mt-3">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="fw-bold">النتائج</div>
+      <div id="meta" class="text-muted small"></div>
+    </div>
+    <div class="table-responsive mt-2">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>الاسم</th>
+            <th>الهوية</th>
+            <th>الجوال</th>
+            <th>عدد الحالات</th>
+            <th>آخر حالة</th>
+            <th>ملخص الحالة</th>
+            <th>آخر تحديث</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="7" class="text-muted">جاري تحميل السجل…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+function renderRows(items){
+  const rows = document.getElementById('rows');
+  const base = '<%= basePath %>';
+  rows.innerHTML = items.map(it=>{
+    const href = `${base}/beneficiary/${encodeURIComponent(it.key)}`;
+    const last = it.last_status || '-';
+    const summary = it.last_summary || '-';
+    const updated = it.last_updated_at ? new Date(it.last_updated_at).toLocaleString('ar-SA') : (it.last_date ? new Date(it.last_date).toLocaleString('ar-SA') : '-');
+    const badge = statusBadge(last);
+    return `
+      <tr>
+        <td><a href="${href}" class="fw-bold text-decoration-none">${escapeHtml(it.full_name||'-')}</a></td>
+        <td>${escapeHtml(it.national_id||'-')}</td>
+        <td>${escapeHtml(it.phone||'-')}</td>
+        <td>${it.count||0}</td>
+        <td>${badge}</td>
+        <td class="small" title="${escapeHtml(summary)}" style="max-width:360px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(summary)}</td>
+        <td>${escapeHtml(updated)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function setRange(v){
+  const sel = document.getElementById('range');
+  if (sel){ sel.value = v; }
+  loadList();
+}
+
+function statusBadge(st){
+  const s = String(st||'').toUpperCase();
+  let cls = 'text-bg-secondary';
+  if (s.includes('CLOSED')) cls = 'text-bg-success';
+  else if (s.includes('IN_SERVICE') || s.includes('SERV')) cls = 'text-bg-primary';
+  else if (s.includes('CALLED') || s.includes('ASSIGNED')) cls = 'text-bg-warning';
+  else if (s.includes('SKIPPED') || s.includes('NO_SHOW')) cls = 'text-bg-danger';
+  const label = escapeHtml(st || '-');
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+async function loadList(){
+  const range = document.getElementById('range')?.value || 'week';
+  const rows = document.getElementById('rows');
+  const meta = document.getElementById('meta');
+  rows.innerHTML = '<tr><td colspan="7" class="text-muted">جاري التحميل…</td></tr>';
+  meta.textContent = '';
+  const r = await fetch(`/api/beneficiaries/list?range=${encodeURIComponent(range)}`);
+  const j = await r.json();
+  if (!j.ok){
+    rows.innerHTML = `<tr><td colspan="7" class="text-danger">${j.msg||'تعذر تحميل السجل'}</td></tr>`;
+    return;
+  }
+  const items = j.results || [];
+  meta.textContent = `عدد النتائج: ${items.length}`;
+  if (!items.length){
+    rows.innerHTML = '<tr><td colspan="7" class="text-muted">لا توجد بيانات ضمن هذا النطاق.</td></tr>';
+    return;
+  }
+  renderRows(items);
+}
+
+async function doSearch(){
+  const q = document.getElementById('q').value.trim();
+  const mode = document.getElementById('mode').value;
+  const rows = document.getElementById('rows');
+  const meta = document.getElementById('meta');
+  if (!q){
+    return loadList();
+  }
+  rows.innerHTML = '<tr><td colspan="7" class="text-muted">جاري البحث...</td></tr>';
+  meta.textContent = '';
+  const r = await fetch(`/api/beneficiaries/search?q=${encodeURIComponent(q)}&mode=${encodeURIComponent(mode)}`);
+  const j = await r.json();
+  if (!j.ok){
+    rows.innerHTML = `<tr><td colspan="7" class="text-danger">${j.msg||'تعذر البحث'}</td></tr>`;
+    return;
+  }
+  const items = j.results || j.items || [];
+  meta.textContent = `عدد النتائج: ${items.length}`;
+  if (!items.length){
+    rows.innerHTML = '<tr><td colspan="7" class="text-muted">لا توجد نتائج.</td></tr>';
+    return;
+  }
+  renderRows(items);
+}
+
+function escapeHtml(str){
+  return String(str==null?'':str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
+
+// Enter key triggers search
+document.getElementById('q').addEventListener('keydown', (e)=>{
+  if (e.key==='Enter') doSearch();
+});
+
+// Load list on first open
+loadList();
+</script>
+</body>
+</html>
